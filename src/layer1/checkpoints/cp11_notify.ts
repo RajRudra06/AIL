@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { Layer1Manifest } from './cp7_assemble_manifest';
+import { Layer1Manifest } from './cp10_assemble_manifest';  // ← already correct
 
-export function runCheckpoint8(manifest: Layer1Manifest): void {
+export function runCheckpoint11(manifest: Layer1Manifest): void {  // ← cp9 → cp11
 
     const langList = manifest.languages.languages
         .map(l => `${l.name} ${l.percentage}%`)
@@ -21,5 +21,5 @@ export function runCheckpoint8(manifest: Layer1Manifest): void {
 
     vscode.window.showInformationMessage(summary);
 
-    console.log('AIL CP8 |', summary);
+    console.log('AIL CP11 |', summary);  // ← CP8 → CP11
 }
