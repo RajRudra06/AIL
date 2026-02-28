@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getPanelHTML } from './panelUI';
+import { runLayer1 } from '../layer1/orchestrator';
 
 export class PanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -33,11 +34,9 @@ export class PanelManager {
             message => {
                 switch (message.command) {
                     case 'runLayer1':
-                        // TODO: wire to Layer 1 orchestrator
-                        panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'running' });
-                        setTimeout(() => {
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'complete' });
-                        }, 2000); // placeholder — replace with real analysis
+                        runLayer1();
+                        panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'complete' });
+                        break;// placeholder — replace with real analysis
                         break;
 
                     case 'runLayer2':

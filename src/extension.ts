@@ -4,16 +4,26 @@ import { PanelManager } from './panel/panelManager';
 export function activate(context: vscode.ExtensionContext) {
     console.log('AIL Extension is now active!');
 
-    // Both commands open the same panel
     const helloWorld = vscode.commands.registerCommand('ail-extension.helloWorld', () => {
-        PanelManager.createOrShow(context);
+        triggerAILPopup(context);
     });
 
     const runAIL = vscode.commands.registerCommand('ail-extension.runAIL', () => {
-        PanelManager.createOrShow(context);
+        triggerAILPopup(context);
     });
 
     context.subscriptions.push(helloWorld, runAIL);
+}
+
+function triggerAILPopup(context: vscode.ExtensionContext) {
+    vscode.window.showInformationMessage(
+        'AIL: Ready to analyze your workspace. Start analysis?',
+        'Run AIL Analysis'
+    ).then(selection => {
+        if (selection === 'Run AIL Analysis') {
+            PanelManager.createOrShow(context);
+        }
+    });
 }
 
 export function deactivate() {}
