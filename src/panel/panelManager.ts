@@ -58,24 +58,28 @@ export class PanelManager {
 
                     case 'runLayer3':
                         panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'running' });
-                        try {
-                            runLayer3();
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'complete' });
-                        } catch (err) {
-                            vscode.window.showErrorMessage(`AIL Layer 3 failed: ${err}`);
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'error' });
-                        }
+                        setTimeout(() => {
+                            try {
+                                runLayer3();
+                                panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'complete' });
+                            } catch (err) {
+                                vscode.window.showErrorMessage(`AIL Layer 3 failed: ${err}`);
+                                panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'error' });
+                            }
+                        }, 50);
                         break;
 
                     case 'runLayer4':
                         panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'running' });
-                        try {
-                            runLayer4();
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'complete' });
-                        } catch (err) {
-                            vscode.window.showErrorMessage(`AIL Layer 4 failed: ${err}`);
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'error' });
-                        }
+                        setTimeout(() => {
+                            try {
+                                runLayer4();
+                                panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'complete' });
+                            } catch (err) {
+                                vscode.window.showErrorMessage(`AIL Layer 4 failed: ${err}`);
+                                panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'error' });
+                            }
+                        }, 50);
                         break;
 
                     case 'requestData':

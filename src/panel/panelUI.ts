@@ -289,11 +289,11 @@ export function getPanelHTML(): string {
 <div class="header">
     <h1>AIL <span>Architectural Intelligence Layer</span></h1>
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('pipeline')">Pipeline</div>
-        <div class="tab" onclick="switchTab('entities')">Entities</div>
-        <div class="tab" onclick="switchTab('complexity')">Complexity</div>
-        <div class="tab" onclick="switchTab('git')">Git Intel</div>
-        <div class="tab" onclick="switchTab('graph')">Graph</div>
+        <div class="tab active" onclick="switchTab('pipeline', this)">Pipeline</div>
+        <div class="tab" onclick="switchTab('entities', this)">Entities</div>
+        <div class="tab" onclick="switchTab('complexity', this)">Complexity</div>
+        <div class="tab" onclick="switchTab('git', this)">Git Intel</div>
+        <div class="tab" onclick="switchTab('graph', this)">Graph</div>
     </div>
 </div>
 
@@ -414,10 +414,14 @@ export function getPanelHTML(): string {
     let entitySortAsc = true;
     const pipeState = [null, 'idle', 'locked', 'locked', 'locked'];
 
-    function switchTab(name) {
+    function switchTab(name, target) {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        event.target.classList.add('active');
+        if (target) {
+            target.classList.add('active');
+        } else if (typeof event !== 'undefined' && event && event.target) {
+            event.target.classList.add('active');
+        }
         document.getElementById('view-' + name).classList.add('active');
         if (name !== 'pipeline') { vscode.postMessage({ command: 'requestData' }); }
     }
@@ -677,8 +681,8 @@ export function getPanelHTML(): string {
             document.getElementById('arch-summary').textContent = summary.markdownReport;
         }
 
-        if (graph?.nodes && graph?.edges && !network) {
-            // Render interactive graph only once or when updated
+        if (graph?.nodes && graph?.edges) {
+            // Render interactive graph
             const colors = {
                 file: '#2B5B84',
                 function: '#8B4513',
@@ -690,9 +694,9 @@ export function getPanelHTML(): string {
 
             const visNodes = new vis.DataSet(graph.nodes.map(n => ({
                 id: n.id,
-                label: n.name,
+                label: esc(n.name),
                 group: n.type,
-                title: 'Type: ' + n.type + (n.metadata?.churnScore ? '<br>Churn: ' + n.metadata.churnScore : ''),
+                title: 'Type: ' + esc(n.type) + (n.metadata?.churnScore ? '<br>Churn: ' + esc(n.metadata.churnScore) : ''),
                 color: { background: colors[n.type] || '#555', border: '#111' },
                 font: { color: '#ffffff', size: 12 },
                 shape: n.type === 'file' ? 'box' : 'dot',
@@ -702,28 +706,32 @@ export function getPanelHTML(): string {
             const visEdges = new vis.DataSet(graph.edges.map(e => ({
                 from: e.source,
                 to: e.target,
-                label: e.type,
+                label: esc(e.type),
                 arrows: 'to',
                 font: { size: 10, align: 'horizontal', color: '#888' },
                 color: { color: '#444', highlight: '#888' },
                 width: e.weight > 1 ? Math.min(e.weight, 5) : 1
             })));
 
-            const container = document.getElementById('graph-container');
-            const data = { nodes: visNodes, edges: visEdges };
-            const options = {
-                interaction: { hover: true, navigationButtons: true, zoomView: true },
-                physics: {
-                    solver: 'forceAtlas2Based',
-                    forceAtlas2Based: {
-                        gravitationalConstant: -50,
-                        centralGravity: 0.01,
-                        springLength: 100,
-                        springConstant: 0.08
+            if (!network) {
+                const container = document.getElementById('graph-container');
+                const data = { nodes: visNodes, edges: visEdges };
+                const options = {
+                    interaction: { hover: true, navigationButtons: true, zoomView: true },
+                    physics: {
+                        solver: 'forceAtlas2Based',
+                        forceAtlas2Based: {
+                            gravitationalConstant: -50,
+                            centralGravity: 0.01,
+                            springLength: 100,
+                            springConstant: 0.08
+                        }
                     }
-                }
-            };
-            network = new vis.Network(container, data, options);
+                };
+                network = new vis.Network(container, data, options);
+            } else {
+                network.setData({ nodes: visNodes, edges: visEdges });
+            }
         }
     }
 

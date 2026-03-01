@@ -13,7 +13,7 @@ Scans the filesystem, identifies languages, categorizes entry points, and provid
 Uses `web-tree-sitter` (via a batched, RAM-optimized streaming architecture) to parse every source file.
 - **Extracts Entities:** Classes, interfaces, functions, methods.
 - **Maps Imports:** Identifies all intra-file dependencies.
-- **Builds Call Graphs:** Exactly traces which functions call which other functions.
+- **Builds Call Graphs:** Performs best-effort static tracing to approximate which functions call which other functions (Note: dynamic dispatch and complex aliasing may be unresolved).
 - **Calculates Complexity:** Scores every function's cyclomatic complexity and nesting depth.
 
 ### Layer 3: Git Intelligence

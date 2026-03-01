@@ -95,8 +95,13 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
     if (fs.existsSync(importsPath)) {
         const importData = JSON.parse(fs.readFileSync(importsPath, 'utf-8'));
         for (const imp of importData.imports || []) {
+            const sourceId = `file::${imp.sourceFile}`;
+            if (!nodeIds.has(sourceId)) {
+                nodes.push({ id: sourceId, type: 'file', name: path.basename(imp.sourceFile), file: imp.sourceFile, metadata: {} });
+                nodeIds.add(sourceId);
+            }
+
             if (!imp.isExternal) {
-                const sourceId = `file::${imp.sourceFile}`;
                 const targetId = `file::${imp.targetFile}`;
 
                 // Ensure target file node exists
@@ -133,6 +138,14 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
     if (fs.existsSync(callGraphPath)) {
         const callData = JSON.parse(fs.readFileSync(callGraphPath, 'utf-8'));
         for (const edge of callData.edges || []) {
+            if (!nodeIds.has(edge.caller)) {
+                nodes.push({ id: edge.caller, type: 'function', name: edge.caller.split('::').pop(), metadata: { unresolved: true } });
+                nodeIds.add(edge.caller);
+            }
+            if (!nodeIds.has(edge.callee)) {
+                nodes.push({ id: edge.callee, type: 'function', name: edge.callee.split('::').pop() || edge.callee, metadata: { unresolved: true } });
+                nodeIds.add(edge.callee);
+            }
             edges.push({
                 source: edge.caller,
                 target: edge.callee,
