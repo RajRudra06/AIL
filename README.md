@@ -64,7 +64,43 @@ For extremely fast, hackathon-style prototyping, skip the network latency.
 
 ## Architecture Diagrams
 
-### The AIL Extension Pipeline
+### Detailed Data Extraction Workflow (For New Contributors)
+
+This diagram shows exactly how AIL extracts information from a raw codebase and why it works so fast without crashing.
+
+```mermaid
+graph TD
+    subgraph Layer 1: Ingestion
+        A[VS Code Workspace] --> B[Filter Ignored dirs]
+        B --> C[Detect Languages & Frameworks]
+    end
+
+    subgraph Layer 2: AST Analysis
+        C --> D[Load Tree-Sitter WASM]
+        D -->|Iterative Stream| E[Parse File to AST]
+        E --> F1[Extract Entities]
+        E --> F2[Extract Imports & Calls]
+        E --> F3[Compute Complexity]
+        F1 & F2 & F3 --> G[Free AST Memory to prevent OOM]
+    end
+
+    subgraph Layer 3: Git Analytics
+        A --> H[Execute Git CLI]
+        H --> I1[git log: Commits]
+        H --> I2[git shortlog: Contributors]
+        H --> I3[git log --numstat: File Churn]
+    end
+
+    subgraph Layer 4: Unification
+        G --> J{Graph Builder}
+        I1 & I2 & I3 --> J
+        J --> K[Attach Churn/Complexity as Weights]
+        K --> L[Resolve Call Edges]
+        L --> M[Export knowledge_graph.json]
+    end
+```
+
+### High-Level Output Pipeline
 
 ```mermaid
 graph TD
