@@ -3,18 +3,11 @@ import os
 from cp3_extractor import ExtractionResult
 from cp1_setup import SetupResult
 
-# ================================================================
-# HELPERS
-# ================================================================
 
 def write_json(path: str, data) -> None:
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"AIL CP4 | Saved → {os.path.basename(path)} ({len(data) if isinstance(data, (list, dict)) else '?'} entries)")
-
-# ================================================================
-# MAIN CHECKPOINT FUNCTION
-# ================================================================
 
 def run_checkpoint4(extraction: ExtractionResult, setup: SetupResult) -> None:
     print(f"AIL CP4 | Saving raw analysis to disk...")
