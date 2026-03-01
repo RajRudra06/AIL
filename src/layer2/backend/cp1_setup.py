@@ -204,3 +204,7 @@ def run_checkpoint1(workspace_path: str) -> SetupResult:
 
     print(f"AIL CP1 | Setup complete | Languages: {len(active_languages)} | Files: {len(source_files)}")
     return result
+
+# CP1 reads `.ail/layer1/meta-data.json`, detects all supported languages in the repository, initializes a Tree-sitter parser for each, and collects all source files tagged by language.
+
+# It returns a `SetupResult` containing the language parsers, tagged files, and output directory paths required for CP2.
