@@ -3,3 +3,4 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+src/layer2/backend/backend_venv_mar_2
