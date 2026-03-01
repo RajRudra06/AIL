@@ -1,0 +1,402 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-02-28T22:09:29.512Z",
+  "commitHistory": {
+    "commits": [
+      {
+        "hash": "14daef52b4747658f3850bcda4a4e66c35c58b17",
+        "author": "rudra",
+        "email": "rudra.rajpurohit@icloud.com",
+        "date": "2026-02-28T17:58:57+05:30",
+        "message": "layer 1 v_1 done",
+        "filesChanged": 5,
+        "insertions": 526,
+        "deletions": 281
+      },
+      {
+        "hash": "ae567f7dd9affe3b981f082642086729f47d0d75",
+        "author": "rudra",
+        "email": "rudra.rajpurohit@icloud.com",
+        "date": "2026-02-28T17:39:42+05:30",
+        "message": "major layer_1/checkpoints done",
+        "filesChanged": 5,
+        "insertions": 429,
+        "deletions": 9
+      },
+      {
+        "hash": "de7af980352ff4eb2c78013f27a0663da5f3584d",
+        "author": "rudra",
+        "email": "rudra.rajpurohit@icloud.com",
+        "date": "2026-02-28T17:26:06+05:30",
+        "message": "framework adn language detector added",
+        "filesChanged": 8,
+        "insertions": 613,
+        "deletions": 469
+      },
+      {
+        "hash": "e140317f150ee81002f1821996571df46af4163f",
+        "author": "rudra",
+        "email": "rudra.rajpurohit@icloud.com",
+        "date": "2026-02-28T16:45:47+05:30",
+        "message": "extension ui panel added and working tested",
+        "filesChanged": 5,
+        "insertions": 644,
+        "deletions": 20
+      },
+      {
+        "hash": "feb037903245c2947fb4c29bcc080c02e9a6101c",
+        "author": "rudra",
+        "email": "rudra.rajpurohit@icloud.com",
+        "date": "2026-02-28T13:58:59+05:30",
+        "message": "initial commit",
+        "filesChanged": 17,
+        "insertions": 6236,
+        "deletions": 0
+      }
+    ],
+    "totalCommits": 5,
+    "dateRange": {
+      "first": "2026-02-28T13:58:59+05:30",
+      "last": "2026-02-28T17:58:57+05:30"
+    }
+  },
+  "contributors": {
+    "contributors": [
+      {
+        "commits": 5,
+        "name": "rudra",
+        "email": "rudra.rajpurohit@icloud.com"
+      }
+    ],
+    "totalContributors": 1
+  },
+  "fileChurn": {
+    "files": [
+      {
+        "file": "package-lock.json",
+        "commits": 1,
+        "insertions": 5793,
+        "deletions": 0,
+        "churnScore": 5793,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": true,
+        "isStale": false
+      },
+      {
+        "file": "src/panel/panelUI.ts",
+        "commits": 2,
+        "insertions": 677,
+        "deletions": 461,
+        "churnScore": 1138,
+        "lastModified": "2026-02-28T17:26:06+05:30",
+        "isHot": true,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp4_framework_scanner.ts",
+        "commits": 2,
+        "insertions": 508,
+        "deletions": 128,
+        "churnScore": 636,
+        "lastModified": "2026-02-28T17:58:57+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp5_entrypoint_finder.ts",
+        "commits": 2,
+        "insertions": 464,
+        "deletions": 108,
+        "churnScore": 572,
+        "lastModified": "2026-02-28T17:58:57+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp6_metrics.ts",
+        "commits": 1,
+        "insertions": 105,
+        "deletions": 0,
+        "churnScore": 105,
+        "lastModified": "2026-02-28T17:39:42+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp2_filescanner.ts",
+        "commits": 2,
+        "insertions": 90,
+        "deletions": 14,
+        "churnScore": 104,
+        "lastModified": "2026-02-28T17:58:57+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/orchestrator.ts",
+        "commits": 3,
+        "insertions": 73,
+        "deletions": 30,
+        "churnScore": 103,
+        "lastModified": "2026-02-28T17:58:57+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/panel/panelManager.ts",
+        "commits": 2,
+        "insertions": 82,
+        "deletions": 5,
+        "churnScore": 87,
+        "lastModified": "2026-02-28T17:26:06+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp3_language_detector.ts",
+        "commits": 1,
+        "insertions": 86,
+        "deletions": 0,
+        "churnScore": 86,
+        "lastModified": "2026-02-28T17:26:06+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/extension.ts",
+        "commits": 3,
+        "insertions": 50,
+        "deletions": 21,
+        "churnScore": 71,
+        "lastModified": "2026-02-28T17:26:06+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "README.md",
+        "commits": 1,
+        "insertions": 71,
+        "deletions": 0,
+        "churnScore": 71,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp7_assemble_manifest.ts",
+        "commits": 2,
+        "insertions": 59,
+        "deletions": 10,
+        "churnScore": 69,
+        "lastModified": "2026-02-28T17:58:57+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".vscode/tasks.json",
+        "commits": 1,
+        "insertions": 64,
+        "deletions": 0,
+        "churnScore": 64,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "package.json",
+        "commits": 2,
+        "insertions": 54,
+        "deletions": 2,
+        "churnScore": 56,
+        "lastModified": "2026-02-28T16:45:47+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "esbuild.js",
+        "commits": 1,
+        "insertions": 56,
+        "deletions": 0,
+        "churnScore": 56,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "vsc-extension-quickstart.md",
+        "commits": 1,
+        "insertions": 48,
+        "deletions": 0,
+        "churnScore": 48,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "eslint.config.mjs",
+        "commits": 1,
+        "insertions": 27,
+        "deletions": 0,
+        "churnScore": 27,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp8_notify.ts",
+        "commits": 1,
+        "insertions": 25,
+        "deletions": 0,
+        "churnScore": 25,
+        "lastModified": "2026-02-28T17:39:42+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".vscode/launch.json",
+        "commits": 1,
+        "insertions": 21,
+        "deletions": 0,
+        "churnScore": 21,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "tsconfig.json",
+        "commits": 1,
+        "insertions": 16,
+        "deletions": 0,
+        "churnScore": 16,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/test/extension.test.ts",
+        "commits": 1,
+        "insertions": 15,
+        "deletions": 0,
+        "churnScore": 15,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".vscodeignore",
+        "commits": 1,
+        "insertions": 14,
+        "deletions": 0,
+        "churnScore": 14,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "src/layer1/checkpoints/cp1_workspace.ts",
+        "commits": 1,
+        "insertions": 13,
+        "deletions": 0,
+        "churnScore": 13,
+        "lastModified": "2026-02-28T17:26:06+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".vscode/settings.json",
+        "commits": 1,
+        "insertions": 13,
+        "deletions": 0,
+        "churnScore": 13,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "CHANGELOG.md",
+        "commits": 1,
+        "insertions": 9,
+        "deletions": 0,
+        "churnScore": 9,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".gitignore",
+        "commits": 1,
+        "insertions": 5,
+        "deletions": 0,
+        "churnScore": 5,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".vscode-test.mjs",
+        "commits": 1,
+        "insertions": 5,
+        "deletions": 0,
+        "churnScore": 5,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": ".vscode/extensions.json",
+        "commits": 1,
+        "insertions": 5,
+        "deletions": 0,
+        "churnScore": 5,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": false,
+        "isStale": false
+      },
+      {
+        "file": "DSP_AIL_Microsoft_AI_Submission.pdf",
+        "commits": 1,
+        "insertions": 0,
+        "deletions": 0,
+        "churnScore": 0,
+        "lastModified": "2026-02-28T16:45:47+05:30",
+        "isHot": false,
+        "isStale": false
+      }
+    ],
+    "hotFiles": [
+      {
+        "file": "package-lock.json",
+        "commits": 1,
+        "insertions": 5793,
+        "deletions": 0,
+        "churnScore": 5793,
+        "lastModified": "2026-02-28T13:58:59+05:30",
+        "isHot": true,
+        "isStale": false
+      },
+      {
+        "file": "src/panel/panelUI.ts",
+        "commits": 2,
+        "insertions": 677,
+        "deletions": 461,
+        "churnScore": 1138,
+        "lastModified": "2026-02-28T17:26:06+05:30",
+        "isHot": true,
+        "isStale": false
+      }
+    ],
+    "staleFiles": [],
+    "totalFiles": 29
+  },
+  "summary": {
+    "totalCommits": 5,
+    "totalContributors": 1,
+    "totalFilesAnalyzed": 29,
+    "hotFileCount": 2,
+    "staleFileCount": 0,
+    "dateRange": {
+      "first": "2026-02-28T13:58:59+05:30",
+      "last": "2026-02-28T17:58:57+05:30"
+    }
+  }
+}

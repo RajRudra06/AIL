@@ -1,0 +1,59 @@
+{
+  "wts_keys": [
+    "CaptureQuantifier",
+    "Edit",
+    "LANGUAGE_VERSION",
+    "Language",
+    "LookaheadIterator",
+    "MIN_COMPATIBLE_VERSION",
+    "Node",
+    "Parser",
+    "Query",
+    "Tree",
+    "TreeCursor",
+    "default"
+  ],
+  "wts_parser_type": "function",
+  "wts_language_type": "function",
+  "wts_default_type": "object",
+  "wasm_path_exists": true,
+  "wasm_path": "c:\\Users\\aniro\\Documents\\Projects\\MSFTAil\\AIL\\dist\\grammars\\web-tree-sitter.wasm",
+  "source_files_count": 49,
+  "source_file_extensions": [
+    "",
+    ".json",
+    ".mjs",
+    ".md",
+    ".pdf",
+    ".js",
+    ".ts"
+  ],
+  "source_files_sample": [
+    ".gitignore",
+    ".vscode\\extensions.json",
+    ".vscode\\launch.json",
+    ".vscode\\settings.json",
+    ".vscode\\tasks.json",
+    ".vscode-test.mjs",
+    ".vscodeignore",
+    "CHANGELOG.md",
+    "DSP_AIL_Microsoft_AI_Submission.pdf",
+    "esbuild.js"
+  ],
+  "parser_class_type": "function",
+  "language_class_type": "function",
+  "parser_init_type": "function",
+  "init_success": true,
+  "load_errors": {
+    "JavaScript": "Error",
+    "TypeScript": "Error"
+  },
+  "matched_languages": {
+    "JavaScript": 1,
+    "TypeScript": 33
+  },
+  "totalParsed": 0,
+  "totalErrors": 0,
+  "languagesLoaded": [],
+  "parseErrorsSample": []
+}

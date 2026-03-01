@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-02-28T22:09:28.922Z",
+  "entities": {
+    "entities": [],
+    "totalCount": 0,
+    "byType": {},
+    "byFile": {}
+  },
+  "imports": {
+    "imports": [],
+    "totalEdges": 0,
+    "fileGraph": {},
+    "externalDeps": []
+  },
+  "callGraph": {
+    "edges": [],
+    "totalEdges": 0,
+    "adjacency": {},
+    "hotFunctions": []
+  },
+  "relationships": {
+    "relationships": [],
+    "totalCount": 0,
+    "byType": {},
+    "inheritanceChains": {}
+  },
+  "complexity": {
+    "functions": [],
+    "totalFunctions": 0,
+    "avgCyclomatic": 0,
+    "avgNesting": 0,
+    "complexFunctions": [],
+    "complexityDistribution": {
+      "low (1-5)": 0,
+      "medium (6-10)": 0,
+      "high (11-20)": 0,
+      "very-high (21+)": 0
+    }
+  },
+  "summary": {
+    "totalEntities": 0,
+    "totalCallEdges": 0,
+    "totalImportEdges": 0,
+    "totalRelationships": 0,
+    "avgComplexity": 0,
+    "complexFunctionCount": 0,
+    "externalDepsCount": 0
+  }
+}
