@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { getPanelHTML } from './panelUI';
 import { runLayer1 } from '../layer1/orchestrator';
+import { runLayer2 } from '../layer2/orchestrator';
+import { GraphPanelManager } from '../layer2/frontend/GraphPanelManager';
 
 export class PanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -10,40 +12,41 @@ export class PanelManager {
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
 
-        // If panel already exists, just reveal it
         if (PanelManager.currentPanel) {
             PanelManager.currentPanel.reveal(column);
             return;
         }
 
-        // Create new panel
         const panel = vscode.window.createWebviewPanel(
             'ailDashboard',
             'AIL — Architectural Intelligence',
             vscode.ViewColumn.One,
             {
-                enableScripts: true,
+                enableScripts:           true,
                 retainContextWhenHidden: true
             }
         );
 
         panel.webview.html = getPanelHTML();
 
-        // Handle messages from webview → extension
         panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
+
                     case 'runLayer1':
                         runLayer1();
                         panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'complete' });
-                        break;// placeholder — replace with real analysis
                         break;
 
                     case 'runLayer2':
                         panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'running' });
-                        setTimeout(() => {
+                        runLayer2(() => {
+                            // callback when Python script finishes
                             panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'complete' });
-                        }, 2000);
+                            // open graph panel automatically
+                            const workspacePath = vscode.workspace.workspaceFolders![0].uri.fsPath;
+                            GraphPanelManager.createOrShow(workspacePath);
+                        });
                         break;
 
                     case 'runLayer3':
@@ -65,7 +68,6 @@ export class PanelManager {
             context.subscriptions
         );
 
-        // Cleanup when panel is closed
         panel.onDidDispose(
             () => { PanelManager.currentPanel = undefined; },
             null,

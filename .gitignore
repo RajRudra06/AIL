@@ -4,3 +4,4 @@ node_modules
 .vscode-test/
 *.vsix
 src/layer2/backend/backend_venv
+src/layer2/backend/__pycache__/
