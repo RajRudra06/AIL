@@ -23,46 +23,56 @@ export interface FileChurnResult {
 /**
  * CP3: Compute per-file churn (add/delete frequency) from git history.
  */
-export function runCheckpoint3(workspacePath: string, analysisDir: string): FileChurnResult {
+export function runCheckpoint3(gitRepos: string[], workspacePath: string, analysisDir: string): FileChurnResult {
     const fileMap = new Map<string, { commits: number; insertions: number; deletions: number; lastDate: string }>();
 
-    try {
-        // Get per-commit file stats (scoped to last 500 commits to prevent memory exhaustion on massive repos)
-        const raw = execSync(
-            'git log --all --numstat -n 500 --pretty=format:"COMMIT|||%aI"',
-            { cwd: workspacePath, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 }
-        );
+    for (const repoPath of gitRepos) {
+        try {
+            // Get per-commit file stats (scoped to last 500 commits to prevent memory exhaustion on massive repos)
+            const raw = execSync(
+                'git log --all --numstat -n 500 --pretty=format:"COMMIT|||%aI"',
+                { cwd: repoPath, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 }
+            );
 
-        let currentDate = '';
+            let currentDate = '';
 
-        for (const line of raw.split('\n')) {
-            const trimmed = line.trim();
-            if (!trimmed) { continue; }
-
-            if (trimmed.startsWith('COMMIT|||')) {
-                currentDate = trimmed.split('|||')[1];
-                continue;
+            // Calculate relative path for nested repos so its files match the root AST paths
+            let prefix = path.relative(workspacePath, repoPath).replace(/\\/g, '/');
+            if (prefix && !prefix.endsWith('/')) {
+                prefix += '/';
             }
 
-            // numstat format: "insertions\tdeletions\tfilename"
-            const parts = trimmed.split('\t');
-            if (parts.length >= 3) {
-                const ins = parts[0] === '-' ? 0 : parseInt(parts[0]) || 0;
-                const del = parts[1] === '-' ? 0 : parseInt(parts[1]) || 0;
-                const file = parts.slice(2).join('\t'); // handle filenames with tabs
+            for (const line of raw.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed) { continue; }
 
-                const existing = fileMap.get(file) || { commits: 0, insertions: 0, deletions: 0, lastDate: '' };
-                existing.commits++;
-                existing.insertions += ins;
-                existing.deletions += del;
-                if (!existing.lastDate || currentDate > existing.lastDate) {
-                    existing.lastDate = currentDate;
+                if (trimmed.startsWith('COMMIT|||')) {
+                    currentDate = trimmed.split('|||')[1];
+                    continue;
                 }
-                fileMap.set(file, existing);
+
+                // numstat format: "insertions\tdeletions\tfilename"
+                const parts = trimmed.split('\t');
+                if (parts.length >= 3) {
+                    const ins = parts[0] === '-' ? 0 : parseInt(parts[0]) || 0;
+                    const del = parts[1] === '-' ? 0 : parseInt(parts[1]) || 0;
+
+                    // Normalize the file path relative to the workspace root
+                    const file = prefix + parts.slice(2).join('\t');
+
+                    const existing = fileMap.get(file) || { commits: 0, insertions: 0, deletions: 0, lastDate: '' };
+                    existing.commits++;
+                    existing.insertions += ins;
+                    existing.deletions += del;
+                    if (!existing.lastDate || currentDate > existing.lastDate) {
+                        existing.lastDate = currentDate;
+                    }
+                    fileMap.set(file, existing);
+                }
             }
+        } catch (err: any) {
+            console.warn(`Git numstat failed in repo ${repoPath}. Details: ${err.message || err}`);
         }
-    } catch (err: any) {
-        throw new Error(`Git numstat failed in CP3. Details: ${err.message || err}`);
     }
 
     const now = new Date();

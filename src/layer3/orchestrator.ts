@@ -33,10 +33,35 @@ export function runLayer3(): void {
     if (!fs.existsSync(layer3Dir)) { fs.mkdirSync(layer3Dir, { recursive: true }); }
     if (!fs.existsSync(analysisDir)) { fs.mkdirSync(analysisDir, { recursive: true }); }
 
-    // Run checkpoints
-    const commitResult = runCheckpoint1(workspacePath, analysisDir);
-    const contribResult = runCheckpoint2(workspacePath, analysisDir);
-    const churnResult = runCheckpoint3(workspacePath, analysisDir);
+    // Find all .git repositories in the workspace (handling monorepos / nested submodules)
+    function findGitDirs(dir: string, repos: string[] = []): string[] {
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    if (entry.name === '.git') {
+                        repos.push(dir); // Add the parent folder of .git
+                    } else if (entry.name !== 'node_modules' && entry.name !== '.ail' && entry.name !== 'dist' && entry.name !== 'build') {
+                        findGitDirs(path.join(dir, entry.name), repos);
+                    }
+                }
+            }
+        } catch { /* ignore read errors */ }
+        return repos;
+    }
+
+    const gitRepos = findGitDirs(workspacePath);
+    if (gitRepos.length === 0) {
+        vscode.window.showErrorMessage('AIL Layer 3: No .git repositories found in the workspace.');
+        return;
+    }
+
+    console.log(`AIL L3 | Found ${gitRepos.length} Git repositories:`, gitRepos);
+
+    // Run checkpoints, passing all discovered repositories
+    const commitResult = runCheckpoint1(gitRepos, workspacePath, analysisDir);
+    const contribResult = runCheckpoint2(gitRepos, workspacePath, analysisDir);
+    const churnResult = runCheckpoint3(gitRepos, workspacePath, analysisDir);
     const manifest = runCheckpoint4(commitResult, contribResult, churnResult, layer3Dir);
     runCheckpoint5(manifest);
 }

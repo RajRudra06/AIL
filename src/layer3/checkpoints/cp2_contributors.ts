@@ -16,32 +16,40 @@ export interface ContributorResult {
 /**
  * CP2: Extract contributor list with commit counts.
  */
-export function runCheckpoint2(workspacePath: string, analysisDir: string): ContributorResult {
-    const contributors: ContributorInfo[] = [];
+export function runCheckpoint2(gitRepos: string[], workspacePath: string, analysisDir: string): ContributorResult {
+    const contributorMap = new Map<string, ContributorInfo>();
 
-    try {
-        const raw = execSync(
-            'git shortlog -sne --all',
-            { cwd: workspacePath, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 }
-        );
+    for (const repoPath of gitRepos) {
+        try {
+            const raw = execSync(
+                'git shortlog -sne --all',
+                { cwd: repoPath, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 }
+            );
 
-        for (const line of raw.split('\n')) {
-            const trimmed = line.trim();
-            if (!trimmed) { continue; }
+            for (const line of raw.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed) { continue; }
 
-            // Format: "  123\tJohn Doe <john@example.com>"
-            const match = trimmed.match(/^\s*(\d+)\s+(.+?)\s+<(.+?)>$/);
-            if (match) {
-                contributors.push({
-                    commits: parseInt(match[1]),
-                    name: match[2],
-                    email: match[3],
-                });
+                // Format: "  123\tJohn Doe <john@example.com>"
+                const match = trimmed.match(/^\s*(\d+)\s+(.+?)\s+<(.+?)>$/);
+                if (match) {
+                    const commits = parseInt(match[1]);
+                    const name = match[2];
+                    const email = match[3];
+                    const key = email || name;
+
+                    const existing = contributorMap.get(key) || { commits: 0, name, email };
+                    existing.commits += commits;
+                    contributorMap.set(key, existing);
+                }
             }
+        } catch (err: any) {
+            console.warn(`Git shortlog failed in repo ${repoPath}. Details: ${err.message || err}`);
         }
-    } catch (err: any) {
-        throw new Error(`Git shortlog failed in CP2. Details: ${err.message || err}`);
     }
+
+    // Convert map to array and sort by commits descending
+    const contributors = Array.from(contributorMap.values()).sort((a, b) => b.commits - a.commits);
 
     const result: ContributorResult = {
         contributors,
