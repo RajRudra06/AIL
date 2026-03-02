@@ -100,7 +100,7 @@ export class PanelManager {
 
                         panel.webview.postMessage({ command: 'chatResponse', text: '...' }); // loading state
 
-                        askQuestion(message.query, wsfRAG[0].uri.fsPath).then(answer => {
+                        askQuestion(message.query, message.history || [], wsfRAG[0].uri.fsPath).then(answer => {
                             panel.webview.postMessage({ command: 'chatResponse', text: answer });
                         }).catch(err => {
                             panel.webview.postMessage({ command: 'chatResponse', text: `Error: ${err.message}` });

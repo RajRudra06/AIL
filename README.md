@@ -1,10 +1,10 @@
 # AIL — Architectural Intelligence Layer
 
-AIL is an advanced VS Code Extension designed to automatically ingest, parse, and analyze massive code repositories, outputting a highly structured, unified **Knowledge Graph** of the entire codebase architecture.
+AIL is an advanced VS Code Extension designed to automatically ingest, parse, and analyze massive code repositories, outputting a highly structured, unified **Knowledge Graph** of the entire codebase architecture. It includes an integrated AI **GraphRAG Assistant** to answer architectural questions instantly.
 
 ## How the Pipeline Works
 
-The analysis pipeline processes the active VS Code workspace through 4 distinct layers:
+The analysis pipeline processes the active VS Code workspace (including monorepos and nested submodules) through 5 distinct layers:
 
 ### Layer 1: Repository Ingestion
 Scans the filesystem, identifies languages, categorizes entry points, and provides high-level metrics of the workspace.
@@ -13,94 +13,60 @@ Scans the filesystem, identifies languages, categorizes entry points, and provid
 Uses `web-tree-sitter` (via a batched, RAM-optimized streaming architecture) to parse every source file.
 - **Extracts Entities:** Classes, interfaces, functions, methods.
 - **Maps Imports:** Identifies all intra-file dependencies.
-- **Builds Call Graphs:** Performs best-effort static tracing to approximate which functions call which other functions (Note: dynamic dispatch and complex aliasing may be unresolved).
+- **Builds Call Graphs:** Performs best-effort static tracing to approximate which functions call which other functions.
 - **Calculates Complexity:** Scores every function's cyclomatic complexity and nesting depth.
 
-### Layer 3: Git Intelligence
-Retrieves historical data directly via the CLI (`git log`, `git shortlog`).
+### Layer 3: Git Intelligence (Multi-Repo Support)
+Recursively finds all `.git` repositories in the workspace, retrieves historical data directly via the CLI (`git log`, `git shortlog`), and normalizes paths to match the AST data perfectly.
 - Computes **File Churn** (identifying "Hot" frequently changed files vs. "Stale" legacy files).
 - Extracts contributors and recent commit timelines.
 
 ### Layer 4: Knowledge Graph Unification
 Merges the structural code logic (L2) with the historical metrics (L3) using relative file paths as keys. The result is a unified graph where nodes not only link to their dependencies (Imports/Calls) but also carry vulnerability weights (Complexity/Churn).
 
+### Layer 5: GraphRAG & AI Chat
+Uses the generated Knowledge Graph to power an architectural AI assistant.
+- Generates semantic text representations of all graph nodes (including churn and complexity stats).
+- Uses **Hybrid Retrieval** (keyword matching + graph edge traversal) to pull precisely the right architectural context.
+- Feeds this context to **Azure OpenAI** to answer complex questions about your codebase topology.
+
 ---
 
 ## The Dashboard UI
-AIL features a rich interactive webview containing:
-- **Entities & Complexity Heatmaps:** Sortable lists of every element in the codebase.
-- **Git Intel:** Hot file indicators and contributor histories.
-- **Interactive Architecture Graph:** A physics-based `vis-network` topology map showing exactly how your modules, classes, and functions are physically wired together. 
+AIL features a rich interactive webview containing 6 tabs:
+1. **Pipeline:** Status cards for each layer, run buttons, auto-continue, overview stats.
+2. **Entities:** Searchable/sortable table of every element in the codebase.
+3. **Complexity:** Cyclomatic complexity heatmaps and nesting depth metrics.
+4. **Git Intel:** Hot/stale file indicators and contributor histories.
+5. **Graph:** An interactive, physics-based `vis-network` topology map showing exactly how your modules, classes, and functions are physically wired together.
+6. **Assistant ✨:** A GraphRAG-powered chat interface connected to Azure OpenAI.
 
 ---
 
-## AI & LLM Integration Strategies
+## How to Set Up the Assistant (Azure OpenAI)
 
-The primary goal of AIL is to compress a 27,000+ file repository into a highly rigid JSON map so an LLM can reason about global architecture without running out of tokens.
+To use the **Assistant ✨** tab, you need to configure your Azure OpenAI credentials in VS Code so AIL can send GraphRAG queries to your deployed LLM.
+
+1. Open VS Code **Settings** (`Ctrl + ,` or `Cmd + ,`).
+2. Search for **AIL** in the settings.
+3. Configure the following fields:
+   * **Azure Open Ai Endpoint**: Your Azure OpenAI Endpoint URL (e.g., `https://my-resource.openai.azure.com/`).
+   * **Azure Open Ai Api Key**: Your Azure API Key.
+   * **Azure Open Ai Deployment**: Your chat model deployment name (default is `gpt-4o`).
+
+Once configured, simply open the AIL Dashboard (`Ctrl/Cmd + Shift + P` -> `Run AIL Analysis`), hit **Run Full Pipeline**, and then navigate to the **Assistant** tab to start asking questions!
+
+---
+
+## System Architecture Details
 
 ### The "AIL-Native" Advantage
 **Why Semantic Relationships (Vector DBs) alone are insufficient:**
 A standard Vector RAG setup embeds code fuzzily. If you ask about "login", it brings back strings containing "login". However, it has no concept of *topology*. 
 
-AIL mathematically verifies through AST parsing that `File A` precisely calls `Function B`. Because AIL exports this exact **Call Graph** and **Relationships** map directly, adding another layer of fuzzy "semantic understanding" on top to discover relationships is entirely irrelevant and wasteful. The JSON *already is* the ground truth relationship map.
+AIL mathematically verifies through AST parsing that `File A` precisely calls `Function B`. Because AIL exports this exact **Call Graph** and **Relationships** map directly, adding another layer of fuzzy "semantic understanding" on top to discover relationships is entirely irrelevant and wasteful. The JSON *already is* the ground truth relationship map. With Layer 5, we traverse this physical graph to provide exact context to the LLM.
 
-### Strategy A: Small Repos (< 100 Files)
-**Direct Context Injection (Fastest, Cheapest):**
-Since the output `knowledge_graph.json` is small, we skip all databases. The JSON is injected directly into the LLM system prompt. The LLM gets a complete, 10,000-foot view of every structural and historical dependency simultaneously.
-
-### Strategy B: Massive Repos (> 100 Files)
-**Graph-Augmented RAG (Azure AI Search):**
-When the repository is too large for the context window, we utilize a Vector DB as a filter, not as an oracle. 
-1. The AIL worker uploads the code snippets to Azure AI Search, attaching the AIL metrics (`complexity: 25`, `isHot: true`) as metadata tags on the embeddings.
-2. The User asks a question in the chat.
-3. The query searches the Vector DB, but the retrieval logic uses the AIL JSON to mathematically ensure the LLM receives the flagged snippet *alongside* its directly connected Call Graph dependencies, specifically boosting files marked as highly complex or heavily churned.
-
-### Strategy C: The High-Speed Prototype (Local/Ollama)
-For extremely fast, hackathon-style prototyping, skip the network latency.
-- Run a background OS/Node thread directly in the extension.
-- Load the AIL JSON into a standard application memory Dictionary (HashMap).
-- Perform `O(1)` memory lookups against the function names.
-- Send the curated JSON prompt to a local instance of Ollama (`localhost:11434`), streaming the answer directly back to the VS Code UI within milliseconds, never freezing the main Node.js UI thread.
-
-## Architecture Diagrams
-
-### Detailed Data Extraction Workflow (For New Contributors)
-
-This diagram shows exactly how AIL extracts information from a raw codebase and why it works so fast without crashing.
-
-```mermaid
-graph TD
-    subgraph Layer 1: Ingestion
-        A[VS Code Workspace] --> B[Filter Ignored dirs]
-        B --> C[Detect Languages & Frameworks]
-    end
-
-    subgraph Layer 2: AST Analysis
-        C --> D[Load Tree-Sitter WASM]
-        D -->|Iterative Stream| E[Parse File to AST]
-        E --> F1[Extract Entities]
-        E --> F2[Extract Imports & Calls]
-        E --> F3[Compute Complexity]
-        F1 & F2 & F3 --> G[Free AST Memory to prevent OOM]
-    end
-
-    subgraph Layer 3: Git Analytics
-        A --> H[Execute Git CLI]
-        H --> I1[git log: Commits]
-        H --> I2[git shortlog: Contributors]
-        H --> I3[git log --numstat: File Churn]
-    end
-
-    subgraph Layer 4: Unification
-        G --> J{Graph Builder}
-        I1 & I2 & I3 --> J
-        J --> K[Attach Churn/Complexity as Weights]
-        K --> L[Resolve Call Edges]
-        L --> M[Export knowledge_graph.json]
-    end
-```
-
-### High-Level Output Pipeline
+### Output Pipeline Architecture
 
 ```mermaid
 graph TD
@@ -111,32 +77,7 @@ graph TD
     C --> E
     D --> E
     E --> F[.ail/knowledge_graph.json]
+    F -->|Layer 5 GraphRAG| H((Azure OpenAI))
     F --> G[VS Code Interactive Webview]
-```
-
-### The Fast Local Prototype Strategy (Ollama)
-
-```mermaid
-graph TD
-    A[VS Code UI Thread] -->|Runs L1 - L4| B[.ail/ JSONs]
-    A -->|Spawns Background Process| C[Python/Node OS Thread]
-    D[VS Code Chat] -->|Question + Exact Function Name| C
-    C -->|Instantly O 1 Looks up Function in JSON| B
-    B -->|Code + Context| C
-    C -->|Local HTTP Request| E[Ollama via localhost:11434]
-    E -->|Streamed Response| D
-```
-
-### The Enterprise Cloud Strategy (Azure AI Search)
-
-```mermaid
-graph TD
-    A[VS Code Workspace] -->|AIL Pipeline| B[.ail/ Knowledge JSONs]
-    B -->|Ingestion Worker| C[(Azure AI Search)]
-    C -->|Embeddings + Meta Tags| C
-    D[VS Code User Chat] -->|Semantic Query| E[Azure API Gateway]
-    E -->|Structural Filter/Search| C
-    C -->|Targeted Context| E
-    E -->|Prompt| F[Azure OpenAI LLM]
-    F -->|Answer| D
+    H -.->|Chat Stream| G
 ```

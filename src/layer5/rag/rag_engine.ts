@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-export async function askQuestion(query: string, workspacePath: string): Promise<string> {
+export interface ChatMessage { role: 'user' | 'assistant'; content: string; }
+
+export async function askQuestion(query: string, history: ChatMessage[], workspacePath: string): Promise<string> {
     const layer5Dir = path.join(workspacePath, '.ail', 'layer5');
     const indexFile = path.join(layer5Dir, 'index', 'node_embeddings.json');
     const graphFile = path.join(workspacePath, '.ail', 'layer4', 'analysis', 'knowledge_graph.json');
@@ -73,15 +75,18 @@ export async function askQuestion(query: string, workspacePath: string): Promise
         });
 
         // --- 5. Ask Azure OpenAI LLM ---
-        const prompt = `You are AIL, an expert software architect AI. 
-Use the provided Architectural Knowledge Graph context to answer the user's question accurately.
+        const systemPrompt = `You are AIL, an expert software architect AI. 
+Use the provided Architectural Knowledge Graph context to answer the user's latest question accurately.
 Do not guess. If the answer is not in the context, say so.
 
-CONTEXT:
-${contextText}
+CONTEXT FOR CURRENT QUESTION:
+${contextText}`;
 
-QUESTION:
-${query}`;
+        const apiMessages = [
+            { role: 'system', content: systemPrompt },
+            ...history,
+            { role: 'user', content: query }
+        ];
 
         const apiUrl = `${endpoint.replace(/\/+$/, '')}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-01`;
 
@@ -92,7 +97,7 @@ ${query}`;
                 'api-key': apiKey
             },
             body: JSON.stringify({
-                messages: [{ role: 'user', content: prompt }],
+                messages: apiMessages,
                 temperature: 0.2,
                 max_tokens: 1000
             })

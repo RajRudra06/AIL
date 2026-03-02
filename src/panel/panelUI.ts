@@ -825,6 +825,8 @@ export function getPanelHTML(): string {
     function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
     // ── Chat functions ──
+    let chatContextHistory = [];
+
     function handleChatKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -843,7 +845,11 @@ export function getPanelHTML(): string {
         // Disable UI
         document.getElementById('chat-controls').classList.add('chat-disabled');
         
-        vscode.postMessage({ command: 'askGraphRAG', query: query });
+        // Send history to backend
+        vscode.postMessage({ command: 'askGraphRAG', query: query, history: chatContextHistory });
+        
+        // Push user message to history AFTER sending, so backend just appends it to the end
+        chatContextHistory.push({ role: 'user', content: query });
     }
 
     let currentAiBubble = null;
@@ -866,6 +872,8 @@ export function getPanelHTML(): string {
                 appendChat('ai', 'Thinking (running GraphRAG query)...');
             } else {
                 if (currentAiBubble) currentAiBubble.textContent = msg.text;
+                // Add AI answer to history
+                chatContextHistory.push({ role: 'assistant', content: msg.text });
                 document.getElementById('chat-controls').classList.remove('chat-disabled');
             }
         }
