@@ -1,17 +1,8 @@
-# cp8_metadata.py
-
 import json
 import os
 from collections import Counter
 from cp1_setup import SetupResult
-
-try:
-    import networkx as nx
-    NETWORKX_AVAILABLE = True
-except ImportError:
-    NETWORKX_AVAILABLE = False
-    print("WARNING: networkx not installed — circular dependency detection disabled")
-    print("Run: pip install networkx")
+import datetime
 
 
 def write_json(path: str, data) -> None:
@@ -21,14 +12,12 @@ def write_json(path: str, data) -> None:
 
 
 def get_top_called_functions(edges: list[dict], nodes: list[dict], top_n: int = 10) -> list[dict]:
-    # count how many times each function is called (incoming edges)
     call_counts: Counter = Counter()
 
     for edge in edges:
         if edge['type'] == 'calls':
             call_counts[edge['to']] += edge.get('call_count', 1)
 
-    # build id → name map
     id_to_name = {n['id']: n['name'] for n in nodes}
     id_to_file = {n['id']: n.get('file', '') for n in nodes}
 
@@ -44,7 +33,6 @@ def get_top_called_functions(edges: list[dict], nodes: list[dict], top_n: int = 
 
 
 def get_orphan_functions(edges: list[dict], nodes: list[dict]) -> list[dict]:
-    # orphan = function that nothing calls
     called_ids = set()
     for edge in edges:
         if edge['type'] == 'calls':
@@ -53,7 +41,6 @@ def get_orphan_functions(edges: list[dict], nodes: list[dict]) -> list[dict]:
     orphans = []
     for node in nodes:
         if node['type'] == 'function' and node['id'] not in called_ids:
-            # skip __init__, main, and test functions — expected to be uncalled
             name = node['name'].lower()
             if any(skip in name for skip in ['__init__', '__main__', 'main', 'test_', 'setup']):
                 continue
@@ -66,23 +53,36 @@ def get_orphan_functions(edges: list[dict], nodes: list[dict]) -> list[dict]:
 
 
 def detect_circular_dependencies(edges: list[dict]) -> list[list[str]]:
-    if not NETWORKX_AVAILABLE:
-        return []
-
-    # build directed graph from import edges only
-    G = nx.DiGraph()
-
+    # build adjacency list from import edges only
+    graph: dict[str, list] = {}
     for edge in edges:
         if edge['type'] == 'imports':
-            G.add_edge(edge['from'], edge['to'])
+            graph.setdefault(edge['from'], []).append(edge['to'])
 
-    # find all cycles
-    try:
-        cycles = list(nx.simple_cycles(G))
-        # only return cycles — filter out self loops
-        return [c for c in cycles if len(c) > 1]
-    except Exception:
-        return []
+    cycles    = []
+    visited   = set()
+    rec_stack = set()
+
+    def dfs(node, path):
+        visited.add(node)
+        rec_stack.add(node)
+        path.append(node)
+
+        for neighbor in graph.get(node, []):
+            if neighbor not in visited:
+                dfs(neighbor, path)
+            elif neighbor in rec_stack:
+                cycle_start = path.index(neighbor)
+                cycles.append(path[cycle_start:].copy())
+
+        path.pop()
+        rec_stack.discard(node)
+
+    for node in list(graph.keys()):
+        if node not in visited:
+            dfs(node, [])
+
+    return cycles
 
 
 def get_complexity_stats(nodes: list[dict]) -> dict:
@@ -96,56 +96,57 @@ def get_complexity_stats(nodes: list[dict]) -> dict:
         return {}
 
     high_complexity = [
-        {"id": n['id'], "name": n['name'], "file": n.get('file', ''), "complexity": n['complexity']}
+        {
+            "id":         n['id'],
+            "name":       n['name'],
+            "file":       n.get('file', ''),
+            "complexity": n['complexity']
+        }
         for n in nodes
         if n['type'] == 'function' and n.get('complexity', 0) >= 5
     ]
     high_complexity.sort(key=lambda x: x['complexity'], reverse=True)
 
     return {
-        "avg_complexity":      round(sum(complexities) / len(complexities), 2),
-        "max_complexity":      max(complexities),
-        "min_complexity":      min(complexities),
-        "high_complexity_functions": high_complexity[:10]  # top 10 most complex
+        "avg_complexity":            round(sum(complexities) / len(complexities), 2),
+        "max_complexity":            max(complexities),
+        "min_complexity":            min(complexities),
+        "high_complexity_functions": high_complexity[:10]
     }
 
 
 def run_checkpoint8(
-    nodes:    list[dict],
-    edges:    list[dict],
-    setup:    SetupResult
+    nodes: list[dict],
+    edges: list[dict],
+    setup: SetupResult
 ) -> dict:
     print(f"AIL CP8 | Assembling meta-data.json...")
 
-    # counts per node type
     node_type_counts = Counter(n['type'] for n in nodes)
     edge_type_counts = Counter(e['type'] for e in edges)
-
-    # language breakdown
-    language_counts = Counter(
+    language_counts  = Counter(
         n.get('language', 'unknown')
         for n in nodes
         if n['type'] == 'file'
     )
 
-    # analysis
     top_called       = get_top_called_functions(edges, nodes)
     orphans          = get_orphan_functions(edges, nodes)
     circular_deps    = detect_circular_dependencies(edges)
     complexity_stats = get_complexity_stats(nodes)
 
     metadata = {
-        "version":    "1.0.0",
-        "timestamp":  __import__('datetime').datetime.now().isoformat(),
-        "workspace":  setup.workspace_path,
+        "version":   "1.0.0",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "workspace": setup.workspace_path,
         "summary": {
-            "total_nodes":      len(nodes),
-            "total_edges":      len(edges),
-            "total_files":      node_type_counts.get('file', 0),
-            "total_functions":  node_type_counts.get('function', 0),
-            "total_classes":    node_type_counts.get('class', 0),
-            "total_variables":  node_type_counts.get('global_variable', 0),
-            "languages":        dict(language_counts)
+            "total_nodes":     len(nodes),
+            "total_edges":     len(edges),
+            "total_files":     node_type_counts.get('file', 0),
+            "total_functions": node_type_counts.get('function', 0),
+            "total_classes":   node_type_counts.get('class', 0),
+            "total_variables": node_type_counts.get('global_variable', 0),
+            "languages":       dict(language_counts)
         },
         "edge_breakdown": {
             "calls":    edge_type_counts.get('calls', 0),
@@ -153,34 +154,29 @@ def run_checkpoint8(
             "inherits": edge_type_counts.get('inherits', 0)
         },
         "insights": {
-            "top_called_functions":    top_called,
-            "orphan_functions":        orphans,
-            "orphan_count":            len(orphans),
-            "circular_dependencies":   circular_deps,
-            "circular_dep_count":      len(circular_deps),
-            "complexity":              complexity_stats
+            "top_called_functions":  top_called,
+            "orphan_functions":      orphans,
+            "orphan_count":          len(orphans),
+            "circular_dependencies": circular_deps,
+            "circular_dep_count":    len(circular_deps),
+            "complexity":            complexity_stats
         },
         "graphs": {
-            "function_call_graph":   f".ail/layer2/graphs/function_call_graph.json",
-            "import_graph":          f".ail/layer2/graphs/import_graph.json",
-            "class_hierarchy_graph": f".ail/layer2/graphs/class_hierarchy_graph.json",
-            "full_graph":            f".ail/layer2/graphs/full_graph.json"
+            "function_call_graph":   ".ail/layer2/graphs/function_call_graph.json",
+            "import_graph":          ".ail/layer2/graphs/import_graph.json",
+            "class_hierarchy_graph": ".ail/layer2/graphs/class_hierarchy_graph.json",
+            "full_graph":            ".ail/layer2/graphs/full_graph.json"
         }
     }
 
-    # save to .ail/layer2/meta-data.json
     output_path = os.path.join(setup.ail_layer2_dir, 'meta-data.json')
     write_json(output_path, metadata)
 
     print(f"AIL CP8 | Meta-data complete:")
-    print(f"         Total nodes:    {len(nodes)}")
-    print(f"         Total edges:    {len(edges)}")
-    print(f"         Orphan funcs:   {len(orphans)}")
-    print(f"         Circular deps:  {len(circular_deps)}")
-    print(f"         High complexity:{len(complexity_stats.get('high_complexity_functions', []))}")
+    print(f"         Total nodes:     {len(nodes)}")
+    print(f"         Total edges:     {len(edges)}")
+    print(f"         Orphan funcs:    {len(orphans)}")
+    print(f"         Circular deps:   {len(circular_deps)}")
+    print(f"         High complexity: {len(complexity_stats.get('high_complexity_functions', []))}")
 
     return metadata
-
-# CP8 aggregates all produced data to build a summarized meta-data.json, including node and edge counts, top 10 most called functions, orphan functions, and circular dependency detection using networkx.
-
-# The summary is written to .ail/layer2/meta-data.json
