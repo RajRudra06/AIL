@@ -27,9 +27,9 @@ export function runCheckpoint3(workspacePath: string, analysisDir: string): File
     const fileMap = new Map<string, { commits: number; insertions: number; deletions: number; lastDate: string }>();
 
     try {
-        // Get per-commit file stats (scoped to last 6 months to prevent memory exhaustion)
+        // Get per-commit file stats (scoped to last 500 commits to prevent memory exhaustion on massive repos)
         const raw = execSync(
-            'git log --all --numstat --since="6 months ago" --pretty=format:"COMMIT|||%aI"',
+            'git log --all --numstat -n 500 --pretty=format:"COMMIT|||%aI"',
             { cwd: workspacePath, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 }
         );
 
