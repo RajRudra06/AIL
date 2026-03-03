@@ -2,7 +2,7 @@
 
 AIL is an advanced VS Code Extension designed to automatically ingest, parse, and analyze massive code repositories, outputting a highly structured, unified **Knowledge Graph** of the entire codebase architecture. It includes an integrated AI **GraphRAG Assistant** to answer technical architectural questions with implementation-level precision.
 
-## 🚀 The 5-Layer Intelligence Pipeline
+## The 5-Layer Intelligence Pipeline
 
 AIL processes your workspace through a deterministic multi-layer pipeline:
 
@@ -36,7 +36,7 @@ Powers the AI assistant with more than just metadata.
 
 ---
 
-## 📊 The Dashboard UI
+## The Dashboard UI
 
 AIL features a rich interactive webview containing:
 1. **Pipeline:** Status cards for each layer and real-time analysis logs.
@@ -47,7 +47,7 @@ AIL features a rich interactive webview containing:
    - **Risk Heatmap:** Color nodes by RPI (Green → Red).
    - **Impact Explorer:** Click a node to see its full transitive dependency chain.
    - **Coupling Clusters:** Groups files that co-change together.
-6. **Assistant ✨:** A RAG-powered chat interface supporting **Azure OpenAI** and **Google Gemini 2.0 Flash**.
+6. **Assistant:** A RAG-powered chat interface supporting **Azure OpenAI** and **Google Gemini 2.0 Flash**.
 
 ---
 
@@ -67,7 +67,7 @@ AIL supports both Azure OpenAI and Google Gemini.
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 AIL avoids the pitfalls of standard Vector RAG by using the **Knowledge Graph as Ground Truth**.
 
