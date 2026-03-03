@@ -12,14 +12,14 @@
   "activationEvents": ["*"],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "ail-extension.helloWorld",
-        "title": "Hello World"
-      },
-      {
+      "commands": [
+        {
+            "command": "ail-extension.helloWorld",
+            "title":   "AIL: Open Mission Control"
+        },
+        {
             "command": "ail-extension.runAIL",
-            "title": "Run AIL Analysis"
+            "title":   "AIL: Open Mission Control"
         }
     ]
   },

@@ -491,6 +491,10 @@ const GAP_Y   = 80;
 
 function layoutTree(roots) {
     const positions = {};
+
+    const connectedRoots = roots.filter(r => r && r.childCount > 0);
+    const orphanRoots    = roots.filter(r => r && r.childCount === 0);
+
     let globalX = 0;
 
     function measure(treeNode) {
@@ -509,7 +513,7 @@ function layoutTree(roots) {
         if (!treeNode) return;
         const cx = offsetX + treeNode.width / 2;
         const cy = depth * (NODE_H + GAP_Y) + 60;
-        positions[treeNode.id] = { x: cx, y: cy, treeNode };
+        positions[treeNode.id] = { x: cx, y: cy, treeNode, orphan: false };
 
         let childX = offsetX;
         treeNode.children.forEach(c => {
@@ -518,11 +522,86 @@ function layoutTree(roots) {
         });
     }
 
-    roots.forEach(root => {
+    // layout connected trees — untouched
+    connectedRoots.forEach(root => {
         if (!root) return;
         measure(root);
         assign(root, globalX, 0);
-        globalX += root.width + GAP_X * 2;
+        globalX += root.width + GAP_X * 3;
+    });
+
+    // bounding box of connected graph
+    const connectedPositions = Object.values(positions);
+    const allCX  = connectedPositions.map(p => p.x);
+    const allCY  = connectedPositions.map(p => p.y);
+    const minCX  = allCX.length ? Math.min(...allCX) : 0;
+    const maxCX  = allCX.length ? Math.max(...allCX) : 800;
+    const maxCY  = allCY.length ? Math.max(...allCY) : 400;
+    const centerX = (minCX + maxCX) / 2;
+
+    // group orphans by file
+    const orphansByFile = {};
+    orphanRoots.forEach(root => {
+        if (!root) return;
+        const file = root.node.file || 'unknown';
+        if (!orphansByFile[file]) orphansByFile[file] = [];
+        orphansByFile[file].push(root);
+    });
+
+    const fileGroups  = Object.entries(orphansByFile);
+    const totalGroups = fileGroups.length;
+
+    // clusters go BELOW the connected flowchart
+    const belowY     = maxCY + NODE_H + GAP_Y * 4;
+    const clusterW   = 300;
+    const totalWidth = totalGroups * clusterW;
+    const startX     = centerX - totalWidth / 2;
+
+    fileGroups.forEach(([file, fileOrphans], groupIdx) => {
+        const clusterCX = startX + groupIdx * clusterW + clusterW / 2;
+        const clusterCY = belowY;
+
+        // file center node
+        const fileNodeId = \`file-cluster::\${file}\`;
+        positions[fileNodeId] = {
+            x:        clusterCX,
+            y:        clusterCY,
+            treeNode: {
+                id:         fileNodeId,
+                node:       {
+                    id:   fileNodeId,
+                    type: 'file',
+                    name: file.split('/').pop(),
+                    file
+                },
+                children:   [],
+                childCount: 0,
+                collapsed:  false
+            },
+            orphan:        true,
+            isFileCluster: true,
+            clusterFile:   file
+        };
+
+        // circle of function nodes around file center
+        const fnTotal  = fileOrphans.length;
+        const fnRadius = Math.max(90, fnTotal * 16);
+
+        fileOrphans.forEach((root, fnIdx) => {
+            const fnAngle = (fnIdx / fnTotal) * 2 * Math.PI - Math.PI / 2;
+            const fx      = clusterCX + fnRadius * Math.cos(fnAngle);
+            const fy      = clusterCY + fnRadius * Math.sin(fnAngle);
+
+            positions[root.id] = {
+                x:           fx,
+                y:           fy,
+                treeNode:    root,
+                orphan:      true,
+                isCircle:    true,
+                clusterFile: file,
+                fileNodeId:  fileNodeId
+            };
+        });
     });
 
     return positions;
@@ -532,6 +611,8 @@ function layoutTree(roots) {
 // RENDER GRAPH
 // ================================================================
 function renderGraph(view) {
+    console.log('renderGraph called', view, 'allGraphs:', allGraphs ? 'loaded' : 'null');
+
     if (!allGraphs) return;
 
     const graph = allGraphs[view] || { nodes: [], edges: [] };
@@ -601,131 +682,192 @@ function renderGraph(view) {
             .attr('stroke-width', Math.min(1 + (edge.call_count || 1) * 0.3, 3));
     });
 
-    // ── DRAW NODES ──────────────────────────────────────────
-    const nodeGroup = g.append('g').attr('class', 'nodes');
-
+    // draw cluster edges — file center to orphan functions
     Object.entries(positions).forEach(([id, pos]) => {
-        const { treeNode } = pos;
-        const node         = treeNode.node;
-        const hasChildren  = treeNode.childCount > 0;
-        const isCollapsed  = treeNode.collapsed;
+        if (!pos.orphan || !pos.fileNodeId) return;
+        const filePos = positions[pos.fileNodeId];
+        if (!filePos) return;
 
-        const grp = nodeGroup.append('g')
-            .attr('class',     'node-group')
-            .attr('transform', \`translate(\${pos.x - NODE_W/2}, \${pos.y - NODE_H/2})\`)
-            .style('cursor', 'pointer');
+        edgeGroup.append('line')
+            .attr('x1',           filePos.x)
+            .attr('y1',           filePos.y)
+            .attr('x2',           pos.x)
+            .attr('y2',           pos.y)
+            .attr('stroke',       '#3e3e42')
+            .attr('stroke-width', 1)
+            .attr('opacity',      0.4);
+    });
 
-        // box background
+// ── DRAW NODES ──────────────────────────────────────────
+const nodeGroup = g.append('g').attr('class', 'nodes');
+
+// draw cluster edges first (behind nodes)
+Object.entries(positions).forEach(([id, pos]) => {
+    if (!pos.orphan || !pos.fileNodeId) return;
+    const filePos = positions[pos.fileNodeId];
+    if (!filePos) return;
+
+    edgeGroup.append('line')
+        .attr('x1',      filePos.x)
+        .attr('y1',      filePos.y)
+        .attr('x2',      pos.x)
+        .attr('y2',      pos.y)
+        .attr('stroke',  '#3e3e42')
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.4);
+});
+
+Object.entries(positions).forEach(([id, pos]) => {
+    const { treeNode }  = pos;
+    const node          = treeNode.node;
+    const hasChildren   = treeNode.childCount > 0;
+    const isCollapsed   = treeNode.collapsed;
+    const isOrphan      = pos.orphan        === true;
+    const isFileCluster = pos.isFileCluster === true;
+    const isCircle      = pos.isCircle      === true;
+
+    const grp = nodeGroup.append('g')
+        .attr('class',     'node-group')
+        .attr('transform', \`translate(\${pos.x - NODE_W/2}, \${pos.y - NODE_H/2})\`)
+        .style('cursor',   'pointer')
+        .style('opacity',  isOrphan ? (isFileCluster ? 0.9 : 0.5) : 1);
+
+    if (isCircle) {
+        // ── CIRCLE for orphan functions ──────────────────
+        const r = 20;
+        grp.append('circle')
+            .attr('cx',           NODE_W / 2)
+            .attr('cy',           NODE_H / 2)
+            .attr('r',            r)
+            .attr('fill',         nodeColor(node.type, node.complexity))
+            .attr('stroke',       nodeBorder(node.type, node.complexity))
+            .attr('stroke-width', 1.5);
+
+        const shortName = node.name.length > 10 ? node.name.slice(0, 10) + '…' : node.name;
+        grp.append('text')
+            .attr('x',                   NODE_W / 2)
+            .attr('y',                   NODE_H / 2 + r + 12)
+            .attr('text-anchor',         'middle')
+            .attr('fill',                '#d4d4d4')
+            .attr('font-size',           '9px')
+            .attr('font-family',         'monospace')
+            .text(shortName);
+
+    } else if (isFileCluster) {
+        // ── FILE CENTER NODE ─────────────────────────────
         grp.append('rect')
-            .attr('class',  'node-box')
-            .attr('width',  NODE_W)
-            .attr('height', NODE_H)
-            .attr('rx',     8)
-            .attr('ry',     8)
-            .attr('fill',   nodeColor(node.type, node.complexity))
-            .attr('stroke', nodeBorder(node.type, node.complexity))
+            .attr('width',        NODE_W)
+            .attr('height',       NODE_H)
+            .attr('rx',           10)
+            .attr('ry',           10)
+            .attr('fill',         '#1f3a1f')
+            .attr('stroke',       '#51CF66')
+            .attr('stroke-width', 2);
+
+        const shortFile = node.name || '';
+        grp.append('text')
+            .attr('class', 'node-label')
+            .attr('x',     NODE_W / 2)
+            .attr('y',     NODE_H / 2)
+            .text(shortFile.length > 18 ? shortFile.slice(0, 18) + '…' : shortFile);
+
+    } else {
+        // ── NORMAL FLOWCHART NODE ────────────────────────
+        grp.append('rect')
+            .attr('class',        'node-box')
+            .attr('width',        NODE_W)
+            .attr('height',       NODE_H)
+            .attr('rx',           8)
+            .attr('ry',           8)
+            .attr('fill',         nodeColor(node.type, node.complexity))
+            .attr('stroke',       nodeBorder(node.type, node.complexity))
             .attr('stroke-width', selectedNode?.id === id ? 2.5 : 1.5);
 
-        // function name
         const displayName = node.name.length > 18 ? node.name.slice(0, 18) + '…' : node.name;
         grp.append('text')
             .attr('class', 'node-label')
-            .attr('x', NODE_W / 2)
-            .attr('y', hasChildren ? NODE_H / 2 - 6 : NODE_H / 2)
+            .attr('x',     NODE_W / 2)
+            .attr('y',     hasChildren ? NODE_H / 2 - 6 : NODE_H / 2)
             .text(displayName);
 
-        // file meta
         if (node.file) {
             const shortFile = node.file.split('/').pop();
             grp.append('text')
                 .attr('class', 'node-meta')
-                .attr('x', NODE_W / 2)
-                .attr('y', NODE_H / 2 + 9)
+                .attr('x',     NODE_W / 2)
+                .attr('y',     NODE_H / 2 + 9)
                 .text(shortFile);
         }
 
-        // collapse / expand button
         if (hasChildren) {
             const btnX = NODE_W - 14;
             const btnY = 14;
-
             grp.append('circle')
-                .attr('class',  'collapse-circle')
-                .attr('cx',     btnX)
-                .attr('cy',     btnY)
-                .attr('r',      9);
-
+                .attr('class', 'collapse-circle')
+                .attr('cx',    btnX)
+                .attr('cy',    btnY)
+                .attr('r',     9);
             grp.append('text')
-                .attr('class',          'collapse-btn')
-                .attr('x',              btnX)
-                .attr('y',              btnY + 1)
-                .attr('text-anchor',    'middle')
+                .attr('class',             'collapse-btn')
+                .attr('x',                 btnX)
+                .attr('y',                 btnY + 1)
+                .attr('text-anchor',       'middle')
                 .attr('dominant-baseline', 'middle')
                 .text(isCollapsed ? \`+\${treeNode.childCount}\` : '−');
         }
+    }
 
-        // tooltip
-        const tooltip = document.getElementById('tooltip');
-        grp.on('mouseover', (event) => {
-            tooltip.style.display = 'block';
-            tooltip.innerHTML = \`
-                <strong style="color:#fff">\${node.name}</strong><br>
-                <span style="color:#858585">\${node.type}</span>
-                \${node.complexity ? \` · complexity <strong style="color:\${nodeBorder(node.type, node.complexity)}">\${node.complexity}</strong>\` : ''}
-                \${node.file ? \`<br><span style="color:#858585;font-size:10px">\${node.file}</span>\` : ''}
-                \${node.loc   ? \`<br>\${node.loc} lines\` : ''}
-            \`;
-        })
-        .on('mousemove', (event) => {
-            tooltip.style.left = (event.clientX + 12) + 'px';
-            tooltip.style.top  = (event.clientY - 8)  + 'px';
-        })
-        .on('mouseout', () => { tooltip.style.display = 'none'; });
+    // ── TOOLTIP ───────────────────────────────────────────
+    const tooltip = document.getElementById('tooltip');
+    grp.on('mouseover', (event) => {
+        tooltip.style.display = 'block';
+        tooltip.innerHTML = \`
+            <strong style="color:#fff">\${node.name}</strong><br>
+            <span style="color:#858585">\${node.type}</span>
+            \${node.complexity ? \` · complexity <strong style="color:\${nodeBorder(node.type, node.complexity)}">\${node.complexity}</strong>\` : ''}
+            \${node.file ? \`<br><span style="color:#858585;font-size:10px">\${node.file}</span>\` : ''}
+            \${node.loc  ? \`<br>\${node.loc} lines\` : ''}
+        \`;
+    })
+    .on('mousemove', (event) => {
+        tooltip.style.left = (event.clientX + 12) + 'px';
+        tooltip.style.top  = (event.clientY - 8)  + 'px';
+    })
+    .on('mouseout', () => { tooltip.style.display = 'none'; });
 
-        // click handler
-        grp.on('click', (event) => {
-            event.stopPropagation();
-
-            // toggle collapse
-            if (hasChildren) {
-                if (collapsedNodes.has(id)) {
-                    collapsedNodes.delete(id);
-                } else {
-                    collapsedNodes.add(id);
-                }
-                renderGraph(currentView);
+    // ── CLICK ─────────────────────────────────────────────
+    grp.on('click', (event) => {
+        event.stopPropagation();
+        if (hasChildren) {
+            if (collapsedNodes.has(id)) {
+                collapsedNodes.delete(id);
+            } else {
+                collapsedNodes.add(id);
             }
-
-            // show details
-            selectedNode = node;
-            showDetail(node);
-
-            // jump to file for leaf nodes or all nodes on click
-            if (!hasChildren && node.file) {
-                vscode.postMessage({
-                    type: 'OPEN_FILE',
-                    file: node.file,
-                    line: node.line_start || 1
-                });
-            }
-        });
+            renderGraph(currentView);
+        }
+        selectedNode = node;
+        showDetail(node);
     });
+});
 
     // initial zoom to fit
+    // initial zoom to fit — closer zoom
     const allX = Object.values(positions).map(p => p.x);
     const allY = Object.values(positions).map(p => p.y);
     if (allX.length > 0) {
-        const minX   = Math.min(...allX) - NODE_W;
-        const maxX   = Math.max(...allX) + NODE_W;
-        const minY   = Math.min(...allY) - NODE_H;
-        const maxY   = Math.max(...allY) + NODE_H;
-        const treeW  = maxX - minX;
-        const treeH  = maxY - minY;
-        const scale  = Math.min(W / treeW, H / treeH, 1) * 0.85;
-        const tx     = (W - treeW * scale) / 2 - minX * scale;
-        const ty     = (H - treeH * scale) / 2 - minY * scale;
+        const minX  = Math.min(...allX) - NODE_W;
+        const maxX  = Math.max(...allX) + NODE_W;
+        const minY  = Math.min(...allY) - NODE_H;
+        const maxY  = Math.max(...allY) + NODE_H;
+        const treeW = maxX - minX;
+        const treeH = maxY - minY;
+        const scale = Math.min(W / treeW, H / treeH, 1.5) * 0.6;
+        const tx    = (W - treeW * scale) / 2 - minX * scale;
+        const ty    = 40;
         svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
     }
+
 }
 
 // ================================================================
