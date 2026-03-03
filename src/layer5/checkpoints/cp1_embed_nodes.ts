@@ -24,6 +24,11 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
         throw new Error('knowledge_graph.json not found. Did Layer 4 fail?');
     }
 
+    const vscode = require('vscode');
+    const config = vscode.workspace.getConfiguration('ail');
+    const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
+    const disableEmbeddings = config.get<boolean>('disableEmbeddings') || false;
+
     const graphData = JSON.parse(fs.readFileSync(graphPath, 'utf8'));
     const nodes = graphData.nodes || [];
 
@@ -54,11 +59,78 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
         });
     }
 
-    // ------------------------------------------------------------------------------------------------
-    // TODO: In a real environment, we would batch send `nodeEmbeddings.map(n => n.text)` to Azure OpenAI 
-    // Embeddings API here and map the returned float[] arrays back to `node.embedding`.
-    // For this prototype, we save the text representations and will optionally compute embeddings on demand.
-    // ------------------------------------------------------------------------------------------------
+    let embeddedNodesCount = 0;
+
+    if (!disableEmbeddings) {
+        if (provider === 'gemini') {
+            const apiKey = config.get<string>('geminiApiKey');
+            if (!apiKey) {
+                console.warn(`[AIL] Gemini API key not set. Skipping embeddings generation.`);
+            } else {
+                for (const node of nodeEmbeddings) {
+                    try {
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+                        const reqPath = {
+                            model: "models/text-embedding-004",
+                            content: { parts: [{ text: node.text }] }
+                        };
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(reqPath)
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json() as any;
+                            if (data.embedding?.values) {
+                                node.embedding = data.embedding.values;
+                                embeddedNodesCount++;
+                            }
+                        }
+
+                        // Wait a fraction of a second to prevent strict ratelimiting on standard tiers
+                        await new Promise(r => setTimeout(r, 100));
+
+                    } catch (err) {
+                        console.error(`Gemini embedding failed for node ${node.id}`, err);
+                    }
+                }
+            }
+        } else if (provider === 'azure') {
+            const endpoint = config.get<string>('azureOpenAiEndpoint');
+            const apiKey = config.get<string>('azureOpenAiApiKey');
+            const deployment = config.get<string>('azureOpenAiEmbedDeployment') || 'text-embedding-ada-002';
+
+            if (!endpoint || !apiKey) {
+                console.warn(`[AIL] Azure OpenAI embed settings missing. Skipping embeddings.`);
+            } else {
+                for (const node of nodeEmbeddings) {
+                    try {
+                        const apiUrl = `${endpoint.replace(/\/+$/, '')}/openai/deployments/${deployment}/embeddings?api-version=2023-05-15`;
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
+                            body: JSON.stringify({ input: node.text })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json() as any;
+                            if (data.data?.[0]?.embedding) {
+                                node.embedding = data.data[0].embedding;
+                                embeddedNodesCount++;
+                            }
+                        }
+
+                        // Delay
+                        await new Promise(r => setTimeout(r, 50));
+
+                    } catch (err) {
+                        console.error(`Azure embedding failed for node ${node.id}`, err);
+                    }
+                }
+            }
+        }
+    }
 
     const outputPath = path.join(indexDir, 'node_embeddings.json');
     fs.writeFileSync(outputPath, JSON.stringify({ nodes: nodeEmbeddings }, null, 2));

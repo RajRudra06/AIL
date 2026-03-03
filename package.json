@@ -46,6 +46,20 @@
           "type": "string",
           "default": "text-embedding-3-small",
           "description": "The deployment name of your Embeddings model in Azure OpenAI"
+        },
+        "ail.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Google Gemini API Key"
+        },
+        "ail.aiProvider": {
+          "type": "string",
+          "enum": [
+            "azure",
+            "gemini"
+          ],
+          "default": "azure",
+          "description": "The AI provider to use for RAG and Chat"
         }
       }
     }

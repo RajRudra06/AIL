@@ -649,6 +649,14 @@ export function getPanelHTML(): string {
         if (dashData.l2_entities?.entities) renderEntityTable(dashData.l2_entities.entities);
     }
 
+    let commitSortField = 'date';
+    let commitSortAsc = false;
+    function sortCommits(field) {
+        if (commitSortField === field) commitSortAsc = !commitSortAsc;
+        else { commitSortField = field; commitSortAsc = field === 'date' ? false : false; }
+        if (dashData.l3_commits?.commits) renderGit();
+    }
+
     function sortEntities(field) {
         if (entitySortField === field) entitySortAsc = !entitySortAsc;
         else { entitySortField = field; entitySortAsc = true; }
@@ -712,14 +720,29 @@ export function getPanelHTML(): string {
         // Recent commits
         const cl = document.getElementById('commit-list');
         if (commits?.commits?.length) {
-            cl.innerHTML = commits.commits.slice(0, 50).map(c => {
+            
+            let sortedCommits = [...commits.commits];
+            sortedCommits.sort((a, b) => {
+                let va, vb;
+                if (commitSortField === 'date') {
+                    va = new Date(a.date).getTime();
+                    vb = new Date(b.date).getTime();
+                } else if (commitSortField === 'impact') {
+                    va = a.filesChanged || 0;
+                    vb = b.filesChanged || 0;
+                }
+                const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
+                return commitSortAsc ? cmp : -cmp; // Default desc
+            });
+
+            cl.innerHTML = sortedCommits.slice(0, 50).map(c => {
                 const date = c.date ? new Date(c.date).toLocaleDateString() : '';
                 return '<div class="commit-item">'
                     + '<span class="commit-hash">' + c.hash.slice(0, 7) + '</span>'
                     + '<span class="commit-msg">' + esc(c.message) + '</span>'
                     + '<span class="commit-meta">'
                         + esc(c.author) + '<br>'
-                        + date + ' &bull; <span style="color: var(--vscode-charts-green)">+' + (c.insertions || 0) + '</span> <span style="color: var(--vscode-charts-red)">-' + (c.deletions || 0) + '</span>'
+                        + date + ' &bull; <span>' + (c.filesChanged || 0) + ' files</span> &bull; <span style="color: var(--vscode-charts-green)">+' + (c.insertions || 0) + '</span> <span style="color: var(--vscode-charts-red)">-' + (c.deletions || 0) + '</span>'
                     + '</span>'
                     + '</div>';
             }).join('');
@@ -816,103 +839,158 @@ export function getPanelHTML(): string {
                     }
                 };
                 network = new vis.Network(container, data, options);
+
+                network.on("click", function (params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        const connectedNodes = network.getConnectedNodes(nodeId);
+                        const connectedEdges = network.getConnectedEdges(nodeId);
+
+                        const allNodes = visNodes.get();
+                        const updateNodes = allNodes.map(n => {
+                            if (n.id === nodeId || connectedNodes.includes(n.id)) {
+                                return { id: n.id, color: { opacity: 1 }, font: { color: 'rgba(255,255,255,1)' } };
+                            } else {
+                                return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' } };
+                            }
+                        });
+
+                        const allEdges = visEdges.get();
+                        const updateEdges = allEdges.map(e => {
+                            if (connectedEdges.includes(e.id)) {
+                                return { id: e.id, color: { opacity: 1 } };
+                            } else {
+                                return { id: e.id, color: { opacity: 0.1 } };
+                            }
+                        });
+
+                        visNodes.update(updateNodes);
+                        visEdges.update(updateEdges);
+
+                        // Populate summary block with node details
+                        const nodeData = graph.nodes.find(n => n.id === nodeId);
+                        if (nodeData) {
+                            let detailHtml = `< h3 > ${ esc(nodeData.name) } </h3>`;
+    detailHtml += `<p><strong>Type:</strong> ${esc(nodeData.type)}</p>`;
+    detailHtml += `<p><strong>File:</strong> ${esc(nodeData.file)}</p>`;
+    if (nodeData.metadata) {
+        detailHtml += `<pre style="background:#1e1e1e; padding:8px; border-radius:4px; margin-top:8px;">${esc(JSON.stringify(nodeData.metadata, null, 2))}</pre>`;
+    }
+    document.getElementById('arch-summary').innerHTML = detailHtml;
+}
+
+                    } else {
+    // Reset all opacities if no node is selected
+    const allNodes = visNodes.get().map(n => ({ id: n.id, color: { opacity: 1 }, font: { color: 'rgba(255,255,255,1)' } }));
+    const allEdges = visEdges.get().map(e => ({ id: e.id, color: { opacity: 1 } }));
+    visNodes.update(allNodes);
+    visEdges.update(allEdges);
+
+    // Restore architectural summary
+    if (summary?.markdownReport) {
+        document.getElementById('arch-summary').innerHTML = esc(summary.markdownReport).replace(/\n/g, '<br>');
+    } else {
+        document.getElementById('arch-summary').innerHTML = 'Global architectural summary unavailable. Select a node to view its specific details.';
+    }
+}
+                });
             } else {
-                network.setData({ nodes: visNodes, edges: visEdges });
-            }
+    network.setData({ nodes: visNodes, edges: visEdges });
+}
         }
     }
 
-    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-    // ── Chat functions ──
-    let chatContextHistory = [];
+// ── Chat functions ──
+let chatContextHistory = [];
 
-    function handleChatKey(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendChat();
+function handleChatKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChat();
+    }
+}
+
+function sendChat() {
+    const input = document.getElementById('chat-input');
+    const query = input.value.trim();
+    if (!query) return;
+
+    appendChat('user', query);
+    input.value = '';
+
+    // Disable UI
+    document.getElementById('chat-controls').classList.add('chat-disabled');
+
+    // Send history to backend
+    vscode.postMessage({ command: 'askGraphRAG', query: query, history: chatContextHistory });
+
+    // Push user message to history AFTER sending, so backend just appends it to the end
+    chatContextHistory.push({ role: 'user', content: query });
+}
+
+let currentAiBubble = null;
+function appendChat(role, text) {
+    const history = document.getElementById('chat-history');
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ' + role;
+    bubble.textContent = text;
+    history.appendChild(bubble);
+    history.scrollTop = history.scrollHeight;
+    if (role === 'ai') currentAiBubble = bubble;
+    return bubble;
+}
+
+// ── Message handling ──
+window.addEventListener('message', e => {
+    const msg = e.data;
+    if (msg.command === 'chatResponse') {
+        if (msg.text === '...') {
+            appendChat('ai', 'Thinking (running GraphRAG query)...');
+        } else {
+            if (currentAiBubble) currentAiBubble.textContent = msg.text;
+            // Add AI answer to history
+            chatContextHistory.push({ role: 'assistant', content: msg.text });
+            document.getElementById('chat-controls').classList.remove('chat-disabled');
         }
     }
-
-    function sendChat() {
-        const input = document.getElementById('chat-input');
-        const query = input.value.trim();
-        if (!query) return;
-
-        appendChat('user', query);
-        input.value = '';
-        
-        // Disable UI
-        document.getElementById('chat-controls').classList.add('chat-disabled');
-        
-        // Send history to backend
-        vscode.postMessage({ command: 'askGraphRAG', query: query, history: chatContextHistory });
-        
-        // Push user message to history AFTER sending, so backend just appends it to the end
-        chatContextHistory.push({ role: 'user', content: query });
-    }
-
-    let currentAiBubble = null;
-    function appendChat(role, text) {
-        const history = document.getElementById('chat-history');
-        const bubble = document.createElement('div');
-        bubble.className = 'chat-bubble ' + role;
-        bubble.textContent = text;
-        history.appendChild(bubble);
-        history.scrollTop = history.scrollHeight;
-        if (role === 'ai') currentAiBubble = bubble;
-        return bubble;
-    }
-
-    // ── Message handling ──
-    window.addEventListener('message', e => {
-        const msg = e.data;
-        if (msg.command === 'chatResponse') {
-            if (msg.text === '...') {
-                appendChat('ai', 'Thinking (running GraphRAG query)...');
-            } else {
-                if (currentAiBubble) currentAiBubble.textContent = msg.text;
-                // Add AI answer to history
-                chatContextHistory.push({ role: 'assistant', content: msg.text });
-                document.getElementById('chat-controls').classList.remove('chat-disabled');
-            }
+    if (msg.command === 'layerStatus') {
+        if (msg.status === 'complete') markLayerComplete(msg.layer);
+        else if (msg.status === 'running') {
+            pipeState[msg.layer] = 'running';
+            updatePipeCard(msg.layer);
         }
-        if (msg.command === 'layerStatus') {
-            if (msg.status === 'complete') markLayerComplete(msg.layer);
-            else if (msg.status === 'running') {
-                pipeState[msg.layer] = 'running';
-                updatePipeCard(msg.layer);
-            }
-        }
-        if (msg.command === 'dashboardData') {
-            dashData = msg.data || {};
-            // Update pipeline cards from stored status
-            const ls = dashData.layerStatus;
-            if (ls) {
-                if (ls.l1) { pipeState[1] = 'complete'; updatePipeCard(1); }
-                if (ls.l2) { pipeState[2] = 'complete'; updatePipeCard(2); }
-                if (ls.l3) { pipeState[3] = 'complete'; updatePipeCard(3); }
-                if (ls.l4) { pipeState[4] = 'complete'; updatePipeCard(4); }
-                if (ls.l5) { pipeState[5] = 'complete'; updatePipeCard(5); }
-                // Unlock next
-                for (let i = 1; i <= 5; i++) {
-                    if (pipeState[i] !== 'complete' && (i === 1 || pipeState[i-1] === 'complete')) {
-                        pipeState[i] = 'idle';
-                        updatePipeCard(i);
-                    }
+    }
+    if (msg.command === 'dashboardData') {
+        dashData = msg.data || {};
+        // Update pipeline cards from stored status
+        const ls = dashData.layerStatus;
+        if (ls) {
+            if (ls.l1) { pipeState[1] = 'complete'; updatePipeCard(1); }
+            if (ls.l2) { pipeState[2] = 'complete'; updatePipeCard(2); }
+            if (ls.l3) { pipeState[3] = 'complete'; updatePipeCard(3); }
+            if (ls.l4) { pipeState[4] = 'complete'; updatePipeCard(4); }
+            if (ls.l5) { pipeState[5] = 'complete'; updatePipeCard(5); }
+            // Unlock next
+            for (let i = 1; i <= 5; i++) {
+                if (pipeState[i] !== 'complete' && (i === 1 || pipeState[i - 1] === 'complete')) {
+                    pipeState[i] = 'idle';
+                    updatePipeCard(i);
                 }
             }
-            renderOverview();
-            renderEntities();
-            renderComplexity();
-            renderGit();
-            renderGraph();
         }
-    });
+        renderOverview();
+        renderEntities();
+        renderComplexity();
+        renderGit();
+        renderGraph();
+    }
+});
 
-    // Request initial data
-    setTimeout(() => vscode.postMessage({ command: 'requestData' }), 100);
+// Request initial data
+setTimeout(() => vscode.postMessage({ command: 'requestData' }), 100);
 </script>
-</body>
-</html>`;
+    </body>
+    </html>`;
 }
