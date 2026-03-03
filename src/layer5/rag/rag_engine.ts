@@ -1,9 +1,105 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { execSync } from 'child_process';
 
 export interface ChatMessage { role: 'user' | 'assistant'; content: string; }
 
+// ── Intent Classification ──────────────────────────────────────────────────
+// These patterns detect when the user is asking about implementation logic,
+// not just architectural/metadata facts. Only these queries trigger code injection.
+const IMPL_INTENT_PATTERNS = [
+    /\bhow\s+(does|do|is|are|can|would)\b/i,
+    /\bwhat\s+(does|do|is|are)\s+.+\s+(do|return|use|mean)\b/i,
+    /\bexplain\s+(the\s+)?(logic|code|implementation|function|method|class)/i,
+    /\bshow\s+(me\s+)?(the\s+)?(code|implementation|source|logic)/i,
+    /\bimplementation\b/i,
+    /\bwhat\s+(logic|algorithm)/i,
+    /\bhow\s+(it|this|that)\s+works?\b/i,
+    /\bwhat\s+changed\b/i,
+    /\bwhat\s+(did|does)\s+.+(commit|change|add|remove|fix)\b/i,
+];
+
+const GIT_DIFF_PATTERNS = [
+    /\bwhat\s+changed\b/i,
+    /\bcommit\s+[a-f0-9]{4,}/i,
+    /[a-f0-9]{7,}\s*(changed|introduced|added|removed|fixed)/i,
+    /\bdiff\b/i,
+    /\bwhat\s+(did|does)\s+.+(commit|change|add|remove|fix)\b/i,
+];
+
+function detectIntent(query: string): { wantsCode: boolean; wantsDiff: boolean } {
+    return {
+        wantsCode: IMPL_INTENT_PATTERNS.some(p => p.test(query)),
+        wantsDiff: GIT_DIFF_PATTERNS.some(p => p.test(query)),
+    };
+}
+
+// ── Code Snippet Fetcher ───────────────────────────────────────────────────
+function fetchCodeSnippet(
+    workspacePath: string,
+    filePath: string,
+    startLine: number | undefined,
+    endLine: number | undefined,
+    maxLines: number = 50
+): string | null {
+    try {
+        const absPath = path.isAbsolute(filePath)
+            ? filePath
+            : path.join(workspacePath, filePath);
+
+        if (!fs.existsSync(absPath)) { return null; }
+
+        const lines = fs.readFileSync(absPath, 'utf8').split('\n');
+        const start = Math.max(0, (startLine ?? 1) - 1);
+        const end = Math.min(lines.length - 1, (endLine ?? start + maxLines) - 1 + 5);
+        const excerptLines = lines.slice(start, Math.min(end + 1, start + maxLines));
+
+        return `// ${path.relative(workspacePath, absPath)} (lines ${start + 1}–${start + excerptLines.length})\n` + excerptLines.join('\n');
+    } catch {
+        return null;
+    }
+}
+
+// ── Git Diff Fetcher ───────────────────────────────────────────────────────
+function fetchGitDiff(workspacePath: string, commitHash: string): string | null {
+    try {
+        // Run git show with stat + truncated patch
+        const stat = execSync(`git show ${commitHash} --stat --format="Author: %an <%ae>%nDate: %aI%nMessage: %s"`, {
+            cwd: workspacePath,
+            encoding: 'utf-8',
+            timeout: 5000
+        });
+
+        // Get a truncated diff — only first 150 lines of the patch to avoid token explosion
+        let patch = '';
+        try {
+            const rawPatch = execSync(`git show ${commitHash} --format="" -p`, {
+                cwd: workspacePath,
+                encoding: 'utf-8',
+                timeout: 5000,
+                maxBuffer: 1 * 1024 * 1024
+            });
+            const patchLines = rawPatch.split('\n');
+            patch = patchLines.slice(0, 150).join('\n');
+            if (patchLines.length > 150) {
+                patch += `\n... [${patchLines.length - 150} more lines truncated] ...`;
+            }
+        } catch { /* stat-only fallback is fine */ }
+
+        return stat + (patch ? '\n\n' + patch : '');
+    } catch {
+        return null;
+    }
+}
+
+// ── Extract commit hash from query ────────────────────────────────────────
+function extractCommitHash(query: string): string | null {
+    const m = query.match(/\b([a-f0-9]{7,40})\b/i);
+    return m ? m[1] : null;
+}
+
+// ── Main RAG Query Function ───────────────────────────────────────────────
 export async function askQuestion(query: string, history: ChatMessage[], workspacePath: string): Promise<string> {
     const layer5Dir = path.join(workspacePath, '.ail', 'layer5');
     const indexFile = path.join(layer5Dir, 'index', 'node_embeddings.json');
@@ -19,22 +115,26 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
         const config = vscode.workspace.getConfiguration('ail');
         const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
 
-        // Build a robust search context from multiple sources
+        const { wantsCode, wantsDiff } = detectIntent(query);
+
         let contextText = '';
 
         // --- 1. Search graph nodes ---
         const queryLower = query.toLowerCase();
         const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
 
-        // Try node index first, fall back to raw graph nodes
-        let searchableNodes: { id: string; text: string }[] = [];
+        let searchableNodes: { id: string; text: string; rawNode?: any }[] = [];
         if (fs.existsSync(indexFile)) {
             const indexData = JSON.parse(fs.readFileSync(indexFile, 'utf8'));
-            searchableNodes = (indexData.nodes || []).map((n: any) => ({ id: n.id, text: n.text }));
+            // Keep a reference to the raw graph node for line numbers
+            searchableNodes = (indexData.nodes || []).map((n: any) => {
+                const raw = graphData.nodes.find((gn: any) => gn.id === n.id);
+                return { id: n.id, text: n.text, rawNode: raw };
+            });
         } else {
-            // Build text from raw graph nodes
             searchableNodes = (graphData.nodes || []).map((n: any) => ({
                 id: n.id,
+                rawNode: n,
                 text: 'Type: ' + n.type + ' | Name: ' + n.name + ' | File: ' + (n.file || 'N/A')
                     + (n.metadata?.riskScore ? ' | Risk: ' + n.metadata.riskScore + ' (' + n.metadata.riskLevel + ')' : '')
                     + (n.metadata?.complexity ? ' | Complexity: ' + n.metadata.complexity : '')
@@ -42,7 +142,7 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
             }));
         }
 
-        interface ScoredItem { id: string; text: string; score: number; }
+        interface ScoredItem { id: string; text: string; score: number; rawNode?: any; }
         const scoredNodes: ScoredItem[] = [];
         for (const node of searchableNodes) {
             let score = 0;
@@ -52,9 +152,8 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
                 if (textLower.includes(term)) { score += 1; }
                 if (idLower.includes(term)) { score += 3; }
             }
-            // Exact name match bonus
             if (idLower.includes(queryLower)) { score += 10; }
-            if (score > 0) { scoredNodes.push({ id: node.id, text: node.text, score }); }
+            if (score > 0) { scoredNodes.push({ id: node.id, text: node.text, score, rawNode: node.rawNode }); }
         }
         scoredNodes.sort((a, b) => b.score - a.score);
         const topNodes = scoredNodes.slice(0, 5);
@@ -72,15 +171,38 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
                     contextText += e.source + ' --[' + e.type + ']--> ' + e.target + '\n';
                 });
             }
+
+            // ── HYBRID: Inject code snippets only when intent warrants it ──
+            if (wantsCode) {
+                const snippetChunks: string[] = [];
+                for (const n of topNodes.slice(0, 3)) {
+                    const raw = n.rawNode;
+                    if (!raw || !raw.file || raw.type === 'module') { continue; }
+                    const snippet = fetchCodeSnippet(
+                        workspacePath,
+                        raw.file,
+                        raw.metadata?.startLine as number | undefined,
+                        raw.metadata?.endLine as number | undefined
+                    );
+                    if (snippet) { snippetChunks.push(snippet); }
+                }
+                if (snippetChunks.length > 0) {
+                    contextText += '\n--- SOURCE CODE EXCERPTS ---\n';
+                    contextText += '(Fetched on-demand for implementation-level queries)\n\n';
+                    contextText += snippetChunks.join('\n\n---\n\n');
+                    contextText += '\n';
+                }
+            }
         }
 
         // --- 2. Search git commits ---
         const commitsFile = path.join(workspacePath, '.ail', 'layer3', 'analysis', 'commit_history.json');
+        let topCommitHash: string | null = null;
+
         if (fs.existsSync(commitsFile)) {
             const commitData = JSON.parse(fs.readFileSync(commitsFile, 'utf8'));
             const commits = commitData.commits || [];
 
-            // Score commits by query relevance
             const scoredCommits: { commit: any; score: number }[] = [];
             for (const c of commits) {
                 let score = 0;
@@ -104,6 +226,26 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
                     contextText += '  Message: ' + c.message + '\n';
                     contextText += '  Files changed: ' + (c.filesChanged || 0) + ' | +' + (c.insertions || 0) + ' -' + (c.deletions || 0) + '\n';
                 }
+                topCommitHash = scoredCommits[0].commit.hash;
+            }
+        }
+
+        // ── HYBRID: Inject git diff only when intent warrants it ──
+        if (wantsDiff) {
+            const hashFromQuery = extractCommitHash(query);
+            const hashToFetch = hashFromQuery ?? topCommitHash;
+            if (hashToFetch) {
+                const gitRepos = [workspacePath]; // can be extended for multi-repo
+                let diffText: string | null = null;
+                for (const repo of gitRepos) {
+                    diffText = fetchGitDiff(repo, hashToFetch);
+                    if (diffText) { break; }
+                }
+                if (diffText) {
+                    contextText += '\n--- COMMIT DIFF (git show) ---\n';
+                    contextText += 'Commit: ' + hashToFetch + '\n';
+                    contextText += diffText + '\n';
+                }
             }
         }
 
@@ -111,7 +253,6 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
         const blastFile = path.join(workspacePath, '.ail', 'layer3', 'analysis', 'blast_radius.json');
         if (fs.existsSync(blastFile)) {
             const blastData = JSON.parse(fs.readFileSync(blastFile, 'utf8'));
-            // Find matching blast radius by commit hash
             const matchingBlast = (blastData.commits || []).filter((c: any) => {
                 const hashLower = (c.hash || '').toLowerCase();
                 return queryTerms.some(t => hashLower.includes(t) || hashLower.startsWith(t));
@@ -162,7 +303,7 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
             }
         }
 
-        // --- 6. If absolutely nothing matched, provide graph stats ---
+        // --- 6. Fallback ---
         if (contextText.trim().length === 0) {
             contextText = 'No specific matches found for the query. Here is the project overview:\n';
             contextText += 'Graph: ' + (graphData.stats?.totalNodes || 0) + ' nodes, ' + (graphData.stats?.totalEdges || 0) + ' edges\n';
@@ -170,9 +311,16 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
             contextText += 'Node types: ' + Object.entries(nodeTypes).map(([k, v]) => v + ' ' + k + 's').join(', ') + '\n';
         }
 
-        // --- Build the LLM prompt ---
+        // --- Build LLM prompt ---
+        const modeNote = wantsCode
+            ? 'SOURCE CODE EXCERPTS are included — explain the implementation precisely. '
+            : wantsDiff
+                ? 'A GIT DIFF is included — describe what logic changed and why it matters. '
+                : 'Answer from architectural context only — no code injection needed for this query. ';
+
         const systemPrompt = 'You are AIL, an expert software architect AI assistant. '
             + 'You have deep knowledge of the codebase from analyzing its architecture, git history, risk metrics, and dependency graph. '
+            + modeNote
             + 'Use the provided context to answer the user\'s question accurately and helpfully. '
             + 'When discussing risk, explain WHY something is risky (complexity + churn + coupling). '
             + 'When discussing commits, describe their impact on the codebase. '
@@ -223,7 +371,6 @@ async function askGemini(query: string, systemPrompt: string, history: ChatMessa
     const model = config.get<string>('geminiModel') || 'gemini-2.0-flash';
     const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
 
-    // Map roles: VS Code Chat uses 'user'/'assistant', Gemini uses 'user'/'model'
     const contents = history.map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }]

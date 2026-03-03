@@ -235,10 +235,14 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
     }
 
     // Min-max normalization helpers
-    const normalize = (val: number, arr: number[]): number => {
+    const normalize = (val: number, arr: number[], baselineMax: number): number => {
         const min = Math.min(...arr);
         const max = Math.max(...arr);
-        return max === min ? 0 : (val - min) / (max - min);
+        if (max === min) {
+            // Fallback: If all values are the same, use an absolute scale against a baseline max
+            return Math.min(1, val / baselineMax);
+        }
+        return (val - min) / (max - min);
     };
 
     for (const node of nodes) {
@@ -248,9 +252,10 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
             const fileChurn = node.file ? (churnMap.get(node.file)?.churnScore || 0) : 0;
             const coupling = node.file ? (couplingMap.get(node.file) || 0) : 0;
 
-            const normComplexity = rawComplexities.length > 1 ? normalize(complexity, rawComplexities) : 0;
-            const normChurn = rawChurns.length > 1 ? normalize(fileChurn, rawChurns) : 0;
-            const normCoupling = rawCouplings.length > 1 ? normalize(coupling, rawCouplings) : 0;
+            // Complexity baseline 10, Churn 5, Coupling 0.5
+            const normComplexity = normalize(complexity, rawComplexities, 10);
+            const normChurn = normalize(fileChurn, rawChurns, 5);
+            const normCoupling = normalize(coupling, rawCouplings, 0.5);
 
             const rpi = parseFloat(((normComplexity * 0.4) + (normChurn * 0.4) + (normCoupling * 0.2)).toFixed(3));
 

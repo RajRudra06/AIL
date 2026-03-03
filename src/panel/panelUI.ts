@@ -924,7 +924,12 @@ export function getPanelHTML(): string {
             if (!visEdges) visEdges = new vis.DataSet();
 
             visNodes.clear();
-            visNodes.add(graph.nodes.map(n => ({
+            const nodeIds = new Set();
+            visNodes.add(graph.nodes.filter(n => {
+                if (nodeIds.has(n.id)) return false;
+                nodeIds.add(n.id);
+                return true;
+            }).map(n => ({
                 id: n.id,
                 label: esc(n.name),
                 group: n.type,
@@ -936,7 +941,13 @@ export function getPanelHTML(): string {
             })));
 
             visEdges.clear();
-            visEdges.add(graph.edges.map(e => ({
+            const edgeIds = new Set();
+            visEdges.add(graph.edges.filter(e => {
+                const id = e.source + '->' + e.target;
+                if (edgeIds.has(id)) return false;
+                edgeIds.add(id);
+                return true;
+            }).map(e => ({
                 id: e.source + '->' + e.target,
                 from: e.source,
                 to: e.target,
@@ -947,68 +958,11 @@ export function getPanelHTML(): string {
                 width: e.weight > 1 ? Math.min(e.weight, 5) : 1
             })));
 
+            // Redefine setGraphView globally
             window.setGraphView = function(mode) {
-                if (!network) return;
-                const allNodes = visNodes.get();
-                const allEdges = visEdges.get();
-
-                if (mode === 'overall') {
-                    visNodes.update(allNodes.map(n => ({ id: n.id, color: { opacity: 1 }, font: { color: 'rgba(255,255,255,1)' } })));
-                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 1 } })));
-                } else if (mode === 'entry_exit') {
-                    visNodes.update(allNodes.map(n => {
-                        const isEntry = inDegree[n.id] === 0 && outDegree[n.id] > 0;
-                        const isExit = outDegree[n.id] === 0 && inDegree[n.id] > 0;
-                        if (isEntry) return { id: n.id, color: { border: '#4CAF50', background: '#2E7D32', opacity: 1 }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 3 };
-                        if (isExit) return { id: n.id, color: { border: '#F44336', background: '#C62828', opacity: 1 }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 3 };
-                        return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' }, borderWidth: 1 };
-                    }));
-                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.1 } })));
-                } else if (mode === 'risk_heatmap') {
-                    // Color by RPI score: green (safe) -> yellow (medium) -> red (critical)
-                    visNodes.update(allNodes.map(n => {
-                        var gNode = graph.nodes.find(function(gn) { return gn.id === n.id; });
-                        if (!gNode || typeof gNode.metadata.riskScore !== 'number') {
-                            return { id: n.id, color: { background: '#333', border: '#555', opacity: 0.4 }, font: { color: 'rgba(255,255,255,0.4)' }, borderWidth: 1 };
-                        }
-                        var rpi = gNode.metadata.riskScore;
-                        var bg, border;
-                        if (rpi >= 0.75) { bg = '#C62828'; border = '#F44336'; }
-                        else if (rpi >= 0.5) { bg = '#E65100'; border = '#FF9800'; }
-                        else if (rpi >= 0.25) { bg = '#F9A825'; border = '#FFEB3B'; }
-                        else { bg = '#2E7D32'; border = '#4CAF50'; }
-                        return { id: n.id, color: { background: bg, border: border, opacity: 1 }, font: { color: '#fff' }, borderWidth: 2, size: 10 + rpi * 25 };
-                    }));
-                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.15 } })));
-                } else if (mode === 'coupling') {
-                    // Highlight co-changed file pairs
-                    var coupledFiles = new Set();
-                    if (dashData.l3_coupling && dashData.l3_coupling.stronglyCoupled) {
-                        var clusterColors = ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#FF9800', '#795548'];
-                        var clusterIdx = 0;
-                        var fileColorMap = {};
-                        dashData.l3_coupling.stronglyCoupled.slice(0, 15).forEach(function(p) {
-                            var color = clusterColors[clusterIdx % clusterColors.length];
-                            if (!fileColorMap[p.fileA]) fileColorMap[p.fileA] = color;
-                            if (!fileColorMap[p.fileB]) fileColorMap[p.fileB] = color;
-                            coupledFiles.add(p.fileA);
-                            coupledFiles.add(p.fileB);
-                            clusterIdx++;
-                        });
-
-                        visNodes.update(allNodes.map(n => {
-                            var gNode = graph.nodes.find(function(gn) { return gn.id === n.id; });
-                            var file = gNode && gNode.file ? gNode.file : n.id.replace('file::', '');
-                            if (fileColorMap[file]) {
-                                return { id: n.id, color: { background: fileColorMap[file], border: '#fff', opacity: 1 }, font: { color: '#fff' }, borderWidth: 3 };
-                            }
-                            return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' }, borderWidth: 1 };
-                        }));
-                    }
-                    visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.1 } })));
-                }
+                // ... logic moved below ...
+                applyGraphView(mode);
             };
-
             if (!network) {
                 const container = document.getElementById('graph-container');
                 const data = { nodes: visNodes, edges: visEdges };
@@ -1053,7 +1007,6 @@ export function getPanelHTML(): string {
                         visNodes.update(updateNodes);
                         visEdges.update(updateEdges);
 
-                        // Populate summary block with node details
                         const nodeData = graph.nodes.find(n => n.id === nodeId);
                         if (nodeData) {
                             let detailHtml = '<h3>' + esc(nodeData.name) + '</h3>';
@@ -1063,73 +1016,131 @@ export function getPanelHTML(): string {
                                 detailHtml += '<pre style="background:#1e1e1e; padding:8px; border-radius:4px; margin-top:8px;">' + esc(JSON.stringify(nodeData.metadata, null, 2)) + '</pre>';
                             }
                             document.getElementById('arch-summary').innerHTML = detailHtml;
-}
-
+                        }
                     } else {
-    // Reset all opacities if no node is selected
-    const allNodes = visNodes.get().map(n => ({ id: n.id, color: { opacity: 1, border: '#111', background: colors[n.group] || '#555' }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 1 }));
-    const allEdges = visEdges.get().map(e => ({ id: e.id, color: { opacity: 1 } }));
-    visNodes.update(allNodes);
-    visEdges.update(allEdges);
-
-    // Restore architectural summary
-    if (summary?.markdownReport) {
-        document.getElementById('arch-summary').innerHTML = esc(summary.markdownReport).replace(new RegExp('\\n', 'g'), '<br>');
-    } else {
-        document.getElementById('arch-summary').innerHTML = 'Global architectural summary unavailable. Select a node to view its specific details.';
-    }
-}
+                        const allNodes = visNodes.get().map(n => ({ id: n.id, color: { opacity: 1, border: '#111', background: colors[n.group] || '#555' }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 1 }));
+                        const allEdges = visEdges.get().map(e => ({ id: e.id, color: { opacity: 1 } }));
+                        visNodes.update(allNodes);
+                        visEdges.update(allEdges);
+                        if (summary?.markdownReport) {
+                            document.getElementById('arch-summary').innerHTML = esc(summary.markdownReport).replace(new RegExp('\\n', 'g'), '<br>');
+                        } else {
+                            document.getElementById('arch-summary').innerHTML = 'Global architectural summary unavailable. Select a node to view its specific details.';
+                        }
+                    }
                 });
 
-// Right-click context handler
-network.on("oncontext", function (params) {
-    params.event.preventDefault();
-    const nodeId = network.getNodeAt(params.pointer.DOM);
-    if (!nodeId) return;
+                network.on("oncontext", function (params) {
+                    params.event.preventDefault();
+                    const nodeId = network.getNodeAt(params.pointer.DOM);
+                    if (!nodeId) return;
 
-    const nodeData = graph.nodes.find(n => n.id === nodeId);
-    if (!nodeData) return;
+                    const nodeData = graph.nodes.find(n => n.id === nodeId);
+                    if (!nodeData) return;
 
-    let html = '<h3>Context: ' + esc(nodeData.name) + '</h3>';
+                    let html = '<h3>Context: ' + esc(nodeData.name) + '</h3>';
+                    const connectedEdges = graph.edges.filter(e => e.source === nodeId || e.target === nodeId);
+                    const incoming = connectedEdges.filter(e => e.target === nodeId).map(e => esc(e.source));
+                    const outgoing = connectedEdges.filter(e => e.source === nodeId).map(e => esc(e.target));
 
-    // Traces
-    const connectedEdges = graph.edges.filter(e => e.source === nodeId || e.target === nodeId);
-    const incoming = connectedEdges.filter(e => e.target === nodeId).map(e => esc(e.source));
-    const outgoing = connectedEdges.filter(e => e.source === nodeId).map(e => esc(e.target));
+                    html += '<div style="margin-top:10px; padding:8px; background:#1e1e1e; border-radius:4px;">';
+                    html += '<strong>Incoming Calls (' + incoming.length + '):</strong><br/> <span style="color:#aaa">' + (incoming.slice(0, 10).join('<br/>') || 'None') + ' ' + (incoming.length > 10 ? '...' : '') + '</span><br/><br/>';
+                    html += '<strong>Outgoing Calls (' + outgoing.length + '):</strong><br/> <span style="color:#aaa">' + (outgoing.slice(0, 10).join('<br/>') || 'None') + ' ' + (outgoing.length > 10 ? '...' : '') + '</span>';
+                    html += '</div>';
 
-    html += '<div style="margin-top:10px; padding:8px; background:#1e1e1e; border-radius:4px;">';
-    html += '<strong>Incoming Calls (' + incoming.length + '):</strong><br/> <span style="color:#aaa">' + (incoming.slice(0, 10).join('<br/>') || 'None') + ' ' + (incoming.length > 10 ? '...' : '') + '</span><br/><br/>';
-    html += '<strong>Outgoing Calls (' + outgoing.length + '):</strong><br/> <span style="color:#aaa">' + (outgoing.slice(0, 10).join('<br/>') || 'None') + ' ' + (outgoing.length > 10 ? '...' : '') + '</span>';
-    html += '</div>';
-
-    // Git History (if file)
-    if (nodeData.type === 'file' && dashData.l3_churn?.files) {
-        const churnData = dashData.l3_churn.files.find(f => f.file === nodeData.file);
-        if (churnData) {
-            html += '<div style="margin-top:10px; padding:8px; background:#1e1e1e; border-radius:4px; border-left: 3px solid var(--vscode-charts-orange);">';
-            html += '<strong>Git History:</strong><br/>';
-            html += 'Commits: ' + churnData.commits + '<br/>';
-            html += 'Lines Added: <span style="color:var(--vscode-charts-green)">+' + churnData.insertions + '</span><br/>';
-            html += 'Lines Deleted: <span style="color:var(--vscode-charts-red)">-' + churnData.deletions + '</span><br/>';
-            html += 'Last Modified: <span style="color:#888">' + new Date(churnData.lastModified).toLocaleDateString() + '</span><br/>';
-            html += 'Status: ' + (churnData.isHot ? '<span class="tag hot">HOT</span>' : churnData.isStale ? '<span class="tag stale">STALE</span>' : '<span class="tag" style="background:#444">NORMAL</span>') + '<br/>';
-            html += '</div>';
-        } else {
-            html += '<p style="color:#888; font-style:italic; margin-top:10px;">No Git churn history found for this file.</p>';
-        }
-    } else if (nodeData.type !== 'file') {
-        html += '<p style="color:#888; font-style:italic; margin-top:10px;">Right-click a File node to see exact Git history metrics.</p>';
-    }
-
-    document.getElementById('arch-summary').innerHTML = html;
-});
-
+                    if (nodeData.type === 'file' && dashData.l3_churn?.files) {
+                        const churnData = dashData.l3_churn.files.find(f => f.file === nodeData.file);
+                        if (churnData) {
+                            html += '<div style="margin-top:10px; padding:8px; background:#1e1e1e; border-radius:4px; border-left: 3px solid var(--vscode-charts-orange);">';
+                            html += '<strong>Git History:</strong><br/>';
+                            html += 'Commits: ' + churnData.commits + '<br/>';
+                            html += 'Lines Added: <span style="color:var(--vscode-charts-green)">+' + churnData.insertions + '</span><br/>';
+                            html += 'Lines Deleted: <span style="color:var(--vscode-charts-red)">-' + churnData.deletions + '</span><br/>';
+                            html += 'Last Modified: <span style="color:#888">' + new Date(churnData.lastModified).toLocaleDateString() + '</span><br/>';
+                            html += 'Status: ' + (churnData.isHot ? '<span class="tag hot">HOT</span>' : churnData.isStale ? '<span class="tag stale">STALE</span>' : '<span class="tag" style="background:#444">NORMAL</span>') + '<br/>';
+                            html += '</div>';
+                        }
+                    }
+                    document.getElementById('arch-summary').innerHTML = html;
+                });
             }
-            // DataSet mutation handles the update automatically natively now.
         }
     }
 
-function esc(s) { var t = String(s || ''); t = t.replace(new RegExp('&', 'g'), '&amp;'); t = t.replace(new RegExp('<', 'g'), '&lt;'); t = t.replace(new RegExp('>', 'g'), '&gt;'); return t; }
+    function applyGraphView(mode) {
+        if (!network || !visNodes || !visEdges) return;
+        const allNodes = visNodes.get();
+        const allEdges = visEdges.get();
+        const graph = dashData.l4_graph;
+        if (!graph) return;
+
+        // Compute in/out degrees for entry/exit views
+        const inDegree = {};
+        const outDegree = {};
+        graph.nodes.forEach(n => { inDegree[n.id] = 0; outDegree[n.id] = 0; });
+        graph.edges.forEach(e => {
+            if(outDegree[e.source] !== undefined) outDegree[e.source]++;
+            if(inDegree[e.target] !== undefined) inDegree[e.target]++;
+        });
+
+        if (mode === 'overall') {
+            visNodes.update(allNodes.map(n => ({ id: n.id, color: { opacity: 1 }, font: { color: 'rgba(255,255,255,1)' } })));
+            visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 1 } })));
+        } else if (mode === 'entry_exit') {
+            visNodes.update(allNodes.map(n => {
+                const isEntry = inDegree[n.id] === 0 && outDegree[n.id] > 0;
+                const isExit = outDegree[n.id] === 0 && inDegree[n.id] > 0;
+                if (isEntry) return { id: n.id, color: { border: '#4CAF50', background: '#2E7D32', opacity: 1 }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 3 };
+                if (isExit) return { id: n.id, color: { border: '#F44336', background: '#C62828', opacity: 1 }, font: { color: 'rgba(255,255,255,1)' }, borderWidth: 3 };
+                return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' }, borderWidth: 1 };
+            }));
+            visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.1 } })));
+        } else if (mode === 'risk_heatmap') {
+            visNodes.update(allNodes.map(n => {
+                var gNode = graph.nodes.find(function(gn) { return gn.id === n.id; });
+                if (!gNode || !gNode.metadata || typeof gNode.metadata.riskScore !== 'number') {
+                    return { id: n.id, color: { background: '#333', border: '#555', opacity: 0.4 }, font: { color: 'rgba(255,255,255,0.4)' }, borderWidth: 1 };
+                }
+                var rpi = gNode.metadata.riskScore;
+                var bg, border;
+                if (rpi >= 0.75) { bg = '#C62828'; border = '#F44336'; }
+                else if (rpi >= 0.5) { bg = '#E65100'; border = '#FF9800'; }
+                else if (rpi >= 0.25) { bg = '#F9A825'; border = '#FFEB3B'; }
+                else { bg = '#2E7D32'; border = '#4CAF50'; }
+                return { id: n.id, color: { background: bg, border: border, opacity: 1 }, font: { color: '#fff' }, borderWidth: 2, size: 15 + rpi * 30 };
+            }));
+            visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.15 } })));
+        } else if (mode === 'coupling') {
+            if (dashData.l3_coupling && dashData.l3_coupling.stronglyCoupled) {
+                var clusterColors = ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#FF9800', '#795548'];
+                var clusterIdx = 0;
+                var fileColorMap = {};
+                dashData.l3_coupling.stronglyCoupled.slice(0, 15).forEach(function(p) {
+                    var color = clusterColors[clusterIdx % clusterColors.length];
+                    if (!fileColorMap[p.fileA]) fileColorMap[p.fileA] = color;
+                    if (!fileColorMap[p.fileB]) fileColorMap[p.fileB] = color;
+                    clusterIdx++;
+                });
+
+                visNodes.update(allNodes.map(n => {
+                    var gNode = graph.nodes.find(function(gn) { return gn.id === n.id; });
+                    var file = gNode && gNode.file ? gNode.file : n.id.replace('file::', '');
+                    if (fileColorMap[file]) {
+                        return { id: n.id, color: { background: fileColorMap[file], border: '#fff', opacity: 1 }, font: { color: '#fff' }, borderWidth: 3 };
+                    }
+                    return { id: n.id, color: { opacity: 0.1 }, font: { color: 'rgba(255,255,255,0.1)' }, borderWidth: 1 };
+                }));
+            }
+            visEdges.update(allEdges.map(e => ({ id: e.id, color: { opacity: 0.1 } })));
+        }
+    }
+
+    // Define setGraphView globally
+    window.setGraphView = function(mode) {
+        applyGraphView(mode);
+    };
+
+    function esc(s) { var t = String(s || ''); t = t.replace(new RegExp('&', 'g'), '&amp;'); t = t.replace(new RegExp('<', 'g'), '&lt;'); t = t.replace(new RegExp('>', 'g'), '&gt;'); return t; }
 
 // ── Chat functions ──
 let chatContextHistory = [];
