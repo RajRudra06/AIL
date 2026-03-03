@@ -1,73 +1,48 @@
-# AIL — Deep Technical Walkthrough
+# AIL — Deep Technical Deep Dive
 
-AIL (Architectural Intelligence Layer) is a multi-stage analysis engine that transforms raw source code and git history into a high-fidelity Knowledge Graph used for automated risk assessment and architectural RAG.
+AIL (Architectural Intelligence Layer) is a deterministic analysis engine designed to solve the "context fragmentation" problem in large-scale software engineering. It bridges the gap between static code structure (AST) and historical evolution (Git).
 
-## The Deterministic Analysis Pipeline
+## 1. Structural Intelligence: The Streaming AST Parser (Layer 2)
 
-### Layer 1: Workspace Ingestion
-The entry point of the pipeline. It performs a recursive scan of the workspace to:
-- Identify primary languages (TypeScript, JavaScript, etc.).
-- Categorize files by type (Source, Test, Config, Asset).
-- Determine entry points by analyzing `package.json` roots and standard directory structures.
+**Why it works**: A naive approach to parsing a thousand-file monorepo would exhaust the Node.js memory heap. AIL uses a **RAM-Optimized Streaming Architecture**.
 
-### Layer 2: AST & Semantic Analysis
-This is the core "structural" layer. To handle large repositories without crashing VS Code:
-- **Streaming Parser**: Uses `web-tree-sitter` in a batched stream to minimize RAM pressure.
-- **Entity Extraction**: Identifies Classes, Interfaces, Functions, and Methods.
-- **Dependency Mapping**:
-  - **Imports**: Direct file-to-file links.
-  - **Call Graphs**: Performs static analysis to trace function calls (e.g., `Function A` in `File 1` calls `Method B` in `File 2`).
-- **Complexity Metrics**: Calculates Cyclomatic Complexity (count of decision points) and Nesting Depth for every function.
+- **Batched Processing**: We use a generator-based visitor pattern that processes files in batches of 50.
+- **Tree-Sitter Querying**: Instead of traversing the entire AST manually, we use Tree-Sitter S-expressions (queries) to extract only relevant "Intelligence Nodes" (Classes, Interfaces, Functions) and their signatures.
+- **Semantic Call Mapping**: For every function call identified, AIL attempts to resolve the call target by cross-referencing the `imports.json` map generated in the same pass. This transforms a flat list of files into a **Directed Call Graph**.
 
-### Layer 3: Git & Blast Radius Intelligence
-Extracts historical evolution data directly from the Git CLI.
-- **Recursive Git Search**: Finds every `.git` folder in the workspace (supporting monorepos).
-- **File Churn**: Quantifies volatility by counting commit frequency per file.
-- **Co-Change Coupling**: Analyzes the "co-occurrence" of file changes. If `File A` and `File B` change together in 80% of commits, they are architecturally bound.
-- **Commit Blast Radius**:
-  - **Direct Impact**: The files explicitly touched by a commit.
-  - **Transitive Impact**: Uses the Layer 2 import graph to calculate which downstream files are "at risk" because they depend on the changed files.
+## 2. Evolutionary Intelligence: Multi-Repo Git Processing (Layer 3)
 
-### Layer 4: Knowledge Graph Unification & RPI
-Merges Layer 2 (Structure) and Layer 3 (History) into a single JSON graph.
-- **The RPI Formula**: Every node is assigned a Risk Priority Index (RPI) from 0 to 1:
-  - `Risk = (Complexity * 0.4) + (Churn * 0.4) + (Coupling * 0.2)`
-  - This identifies "Hotspots": code that is complex, frequently changed, and highly coupled.
-- **Summary Generation**: Runs a final pass to identify top-N hotspots and architectural anomalies.
+**Why it works**: Large projects are often monorepos with multiple `.git` roots. AIL performs a recursive discovery to find all roots and normalizes their paths relative to the workspace.
 
----
+### Co-Change Coupling Algorithm
+How do we identify "hidden" architectural bounds? 
+1. **Commit Windowing**: We analyze the last 300 commits per repository.
+2. **Matrix Generation**: For every commit touching between 2 and 30 files, we increment a co-change counter for every unique pair of files `(A, B)`.
+3. **Strength Calculation**: 
+   `Strength = CoChanges(A, B) / max(TotalCommits(A), TotalCommits(B))`
+   A score > 0.8 reveals a "logical lock"—even if the files don't import each other, they are structurally dependent.
 
-## Layer 5: Hybrid Code-Aware RAG
+### Transitive Blast Radius Intelligence
+We calculate the "true" impact of a change using **Recursive Dependency Slicing**:
+1. **Reverse Import Mapping**: We invert the Layer 2 import graph to map `File (Target) -> List of Files (Source)`.
+2. **Impact Propagation**: For every file in a commit, we perform a Depth-First Search (DFS) on the reverse import map to identify all downstream dependents.
+3. **The Result**: A commit touching 1 file in the "Core" module might have a blast radius of 50 files if that core module is a dependency hub.
 
-The Assistant does not just perform fuzzy search; it performs "topological retrieval."
+## 3. The Unification Layer: RPI Calculation (Layer 4)
 
-### 1. The Intent Gate
-When you chat, AIL runs your prompt through a regex-based **Intent Classifier**:
-- **Metadata Intent**: Questions about risk, history, or counts. (Returns metadata only).
-- **Implementation Intent**: Questions like "how does this work?" or "explain the logic." (Triggers code injection).
-- **Commit Intent**: Questions referencing hashes or changes. (Triggers live `git show`).
+**Why it works**: AIL solves the "So What?" problem by quantifying risk. Every node in the graph is assigned a **Risk Priority Index (RPI)**.
 
-### 2. Localized Neighborhood Retrieval
-AIL finds the "Anchor Nodes" matching your query, then crawls the graph edges:
-- **Forward Slicing**: "What does this node call?"
-- **Backward Slicing**: "Who calls this node?"
-- This provides the LLM with the architectural context (the neighborhood) of the code.
+`RPI = (Complexity * 0.4) + (Churn * 0.4) + (Coupling * 0.2)`
 
-### 3. On-Demand Implementation Fetching
-If "Implementation Intent" is detected:
-- AIL uses the `startLine` and `endLine` from Layer 2 to read the exact lines from disk.
-- It injects these snippets (capped at 50 lines) into the context.
-- Result: The LLM can explain exactly *how* a function works without having indexed the whole codebase into a vector DB.
+- **Complexity (L2)**: Higher cyclomatic complexity suggests harder-to-maintain logic.
+- **Churn (L3)**: High volatility indicates frequent bug fixes or requirement shifts.
+- **Coupling (L3)**: Tightly coupled nodes propagate errors easily.
+- **The Hotspot Detector**: By merging these three metrics, AIL highlights the "Danger Zones" where complex code is changing frequently—the top candidates for immediate refactoring.
 
----
+## 4. Hybrid GraphRAG Engine (Layer 5)
 
-## Interactive Dashboard Tabs
+**Why it works**: Standard Vector RAG is "semantically fuzzy" (it matches similar words). AIL RAG is **topological**.
 
-1. **Pipeline**: Real-time analysis orchestrator.
-2. **Entities**: Sortable inventory of the codebase.
-3. **Risk**: RPI-based leaderboard for refactoring.
-4. **Git Intel**: Volunteer metrics and co-change rates.
-5. **Graph**: Interactive physics-based topology map.
-   - **Impact Mode**: See transitive dependency chains.
-   - **Risk Mode**: Color nodes by RPI (Green -> Red).
-6. **Assistant**: The final GraphRAG interface.
+- **Intent-Gated Injection**: We use a local regex classifier to decide whether to fetch code. If the user asks *"What's the risk here?"*, we stay in metadata mode (fast). If they ask *"How does X work?"*, we trigger the **Implementation Fetcher**.
+- **Topological Anchors**: AIL finds the "matched nodes" and then pulls their **1-degree neighbors** from the graph. This provides the LLM with the *Contextual Neighborhood* (what calls this? what is called by this?) which is mathematically verified ground truth.
+- **On-Demand Snippets**: Instead of indexing every line of code into a Vector DB, we use the `startLine` and `endLine` metadata to "go back to disk" and read the exact source code on-the-fly. This keeps the RAG index tiny while providing perfect implementation context.
