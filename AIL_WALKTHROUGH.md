@@ -37,13 +37,13 @@ We introduced the Architectural GraphRAG engine which powers the AI assistant.
 3. **Complexity** — cyclomatic complexity bars, nesting depth, function sorting
 4. **Git Intel** — recent commits, contributor stats, file churn with hot/stale badges
 5. **Graph** — knowledge graph stats + architecture summary text + interactive `vis.js` visualization
-6. **Assistant ✨** — A GraphRAG-powered chat interface connected to Azure OpenAI.
+6. **Assistant** — A GraphRAG-powered chat interface connected to Azure OpenAI.
 
 ---
 
 ## How to Set Up Azure OpenAI for the Assistant
 
-To use the **Assistant ✨** tab, you need to configure your Azure OpenAI credentials in VS Code so AIL can send GraphRAG queries to your deployed LLM.
+To use the **Assistant** tab, you need to configure your Azure OpenAI credentials in VS Code so AIL can send GraphRAG queries to your deployed LLM.
 
 ### Step 1: Get Your Azure OpenAI Credentials
 1. Log in to the [Azure Portal](https://portal.azure.com/).
@@ -64,7 +64,7 @@ To use the **Assistant ✨** tab, you need to configure your Azure OpenAI creden
 ### Step 3: Run the Pipeline and Chat!
 1. Open the AIL Dashboard (`Ctrl/Cmd + Shift + P` -> `Run AIL Analysis`).
 2. Click **Run Full Pipeline** on the Pipeline tab and let it process through all 5 layers.
-3. Once Layer 5 is complete, navigate to the **Assistant ✨** tab.
+3. Once Layer 5 is complete, navigate to the **Assistant** tab.
 4. Try asking an architectural question like: 
    * *"Which functions interact with the database?"*
    * *"What are the most complex files based on Git churn?"*
