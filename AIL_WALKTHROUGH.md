@@ -1,71 +1,73 @@
-# AIL — Full End-to-End Build Walkthrough
+# AIL — Deep Technical Walkthrough
 
-## What Was Built
+AIL (Architectural Intelligence Layer) is a multi-stage analysis engine that transforms raw source code and git history into a high-fidelity Knowledge Graph used for automated risk assessment and architectural RAG.
 
-The complete AIL (Architectural Intelligence Layer) pipeline: 5 analysis layers + a rich 6-tab VS Code dashboard integrated with an AI architectural assistant.
+## The Deterministic Analysis Pipeline
 
-```mermaid
-flowchart LR
-    L1["Layer 1\nRepo Ingestion"] --> L2["Layer 2\nAST Analysis"]
-    L2 --> L3["Layer 3\nGit Intelligence\n(Multi-repo)"]
-    L3 --> L4["Layer 4\nKnowledge Graph"]
-    L4 --> L5["Layer 5\nGraphRAG & AI Chat"]
-    L5 --> UI["Dashboard\n6-Tab UI"]
-```
+### Layer 1: Workspace Ingestion
+The entry point of the pipeline. It performs a recursive scan of the workspace to:
+- Identify primary languages (TypeScript, JavaScript, etc.).
+- Categorize files by type (Source, Test, Config, Asset).
+- Determine entry points by analyzing `package.json` roots and standard directory structures.
 
-## System Architecture Updates
+### Layer 2: AST & Semantic Analysis
+This is the core "structural" layer. To handle large repositories without crashing VS Code:
+- **Streaming Parser**: Uses `web-tree-sitter` in a batched stream to minimize RAM pressure.
+- **Entity Extraction**: Identifies Classes, Interfaces, Functions, and Methods.
+- **Dependency Mapping**:
+  - **Imports**: Direct file-to-file links.
+  - **Call Graphs**: Performs static analysis to trace function calls (e.g., `Function A` in `File 1` calls `Method B` in `File 2`).
+- **Complexity Metrics**: Calculates Cyclomatic Complexity (count of decision points) and Nesting Depth for every function.
 
-### Layer 3 — Git Intelligence (Nested/Monorepo Support)
-Layer 3 was upgraded to recursively search for `.git` folders across the entire VS Code workspace. This means AIL now perfectly supports:
-* Monorepos with multiple sub-projects.
-* Workspaces where the `.git` root is a parent folder.
-* Repositories with nested submodules.
+### Layer 3: Git & Blast Radius Intelligence
+Extracts historical evolution data directly from the Git CLI.
+- **Recursive Git Search**: Finds every `.git` folder in the workspace (supporting monorepos).
+- **File Churn**: Quantifies volatility by counting commit frequency per file.
+- **Co-Change Coupling**: Analyzes the "co-occurrence" of file changes. If `File A` and `File B` change together in 80% of commits, they are architecturally bound.
+- **Commit Blast Radius**:
+  - **Direct Impact**: The files explicitly touched by a commit.
+  - **Transitive Impact**: Uses the Layer 2 import graph to calculate which downstream files are "at risk" because they depend on the changed files.
 
-File paths extracted from Git history are automatically normalized relative to the workspace root, merging Git churn data perfectly with AST entity nodes from Layer 2.
-
-### Layer 5 — GraphRAG (NEW)
-We introduced the Architectural GraphRAG engine which powers the AI assistant. 
-1. **Semantic Text Generation**: It maps Knowledge Graph nodes (entities, properties, Git churn stats) into rich text representations.
-2. **Hybrid Retrieval**: Extracts keywords from the user's prompt and matches them against the Semantic Index.
-3. **Graph Traversal**: Grabs the matched semantic nodes and traverses the Layer 4 graph edges to pull connected nodes (e.g., "Function X calls Function Y in File Z").
-4. **LLM Generation**: Feeds this highly specific, context-rich architectural snapshot into Azure OpenAI to answer your questions accurately.
-
-## Dashboard Tabs
-
-1. **Pipeline** — status cards for each layer, run buttons, auto-continue, overview stats
-2. **Entities** — searchable/sortable table of functions, classes etc. with type tags
-3. **Complexity** — cyclomatic complexity bars, nesting depth, function sorting
-4. **Git Intel** — recent commits, contributor stats, file churn with hot/stale badges
-5. **Graph** — knowledge graph stats + architecture summary text + interactive `vis.js` visualization
-6. **Assistant** — A GraphRAG-powered chat interface connected to Azure OpenAI.
+### Layer 4: Knowledge Graph Unification & RPI
+Merges Layer 2 (Structure) and Layer 3 (History) into a single JSON graph.
+- **The RPI Formula**: Every node is assigned a Risk Priority Index (RPI) from 0 to 1:
+  - `Risk = (Complexity * 0.4) + (Churn * 0.4) + (Coupling * 0.2)`
+  - This identifies "Hotspots": code that is complex, frequently changed, and highly coupled.
+- **Summary Generation**: Runs a final pass to identify top-N hotspots and architectural anomalies.
 
 ---
 
-## How to Set Up Azure OpenAI for the Assistant
+## Layer 5: Hybrid Code-Aware RAG
 
-To use the **Assistant** tab, you need to configure your Azure OpenAI credentials in VS Code so AIL can send GraphRAG queries to your deployed LLM.
+The Assistant does not just perform fuzzy search; it performs "topological retrieval."
 
-### Step 1: Get Your Azure OpenAI Credentials
-1. Log in to the [Azure Portal](https://portal.azure.com/).
-2. Navigate to your **Azure OpenAI Resource**.
-3. Under the **Resource Management** section on the left sidebar, click **Keys and Endpoint**.
-4. Copy **KEY 1** (or KEY 2) and the **Endpoint URL** (it looks like `https://<your-resource-name>.openai.azure.com/`).
-5. Open **Azure AI Studio** (via the portal) and go to your **Deployments**. Note the exact name of your chat deployment (e.g., `gpt-4o`).
+### 1. The Intent Gate
+When you chat, AIL runs your prompt through a regex-based **Intent Classifier**:
+- **Metadata Intent**: Questions about risk, history, or counts. (Returns metadata only).
+- **Implementation Intent**: Questions like "how does this work?" or "explain the logic." (Triggers code injection).
+- **Commit Intent**: Questions referencing hashes or changes. (Triggers live `git show`).
 
-### Step 2: Configure the AIL Extension in VS Code
-1. Open VS Code Settings (`Ctrl + ,` or `Cmd + ,`).
-2. Type `AIL` in the settings search bar.
-3. You will see the new configuration fields under the AIL extension:
-   * **Azure Open Ai Endpoint**: Paste your Endpoint URL here.
-   * **Azure Open Ai Api Key**: Paste your Key here.
-   * **Azure Open Ai Deployment**: Enter your chat model deployment name (default is `gpt-4o`).
-   * **Azure Open Ai Embed Deployment**: *(Optional for future use)* Enter your embedding model deployment name.
+### 2. Localized Neighborhood Retrieval
+AIL finds the "Anchor Nodes" matching your query, then crawls the graph edges:
+- **Forward Slicing**: "What does this node call?"
+- **Backward Slicing**: "Who calls this node?"
+- This provides the LLM with the architectural context (the neighborhood) of the code.
 
-### Step 3: Run the Pipeline and Chat!
-1. Open the AIL Dashboard (`Ctrl/Cmd + Shift + P` -> `Run AIL Analysis`).
-2. Click **Run Full Pipeline** on the Pipeline tab and let it process through all 5 layers.
-3. Once Layer 5 is complete, navigate to the **Assistant** tab.
-4. Try asking an architectural question like: 
-   * *"Which functions interact with the database?"*
-   * *"What are the most complex files based on Git churn?"*
-   * *"How does the authentication flow work in this codebase?"*
+### 3. On-Demand Implementation Fetching
+If "Implementation Intent" is detected:
+- AIL uses the `startLine` and `endLine` from Layer 2 to read the exact lines from disk.
+- It injects these snippets (capped at 50 lines) into the context.
+- Result: The LLM can explain exactly *how* a function works without having indexed the whole codebase into a vector DB.
+
+---
+
+## Interactive Dashboard Tabs
+
+1. **Pipeline**: Real-time analysis orchestrator.
+2. **Entities**: Sortable inventory of the codebase.
+3. **Risk**: RPI-based leaderboard for refactoring.
+4. **Git Intel**: Volunteer metrics and co-change rates.
+5. **Graph**: Interactive physics-based topology map.
+   - **Impact Mode**: See transitive dependency chains.
+   - **Risk Mode**: Color nodes by RPI (Green -> Red).
+6. **Assistant**: The final GraphRAG interface.
