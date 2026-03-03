@@ -207,7 +207,7 @@ async function askAzure(query: string, systemPrompt: string, history: ChatMessag
         body: JSON.stringify({
             messages: [{ role: 'system', content: systemPrompt }, ...history, { role: 'user', content: query }],
             temperature: 0.2,
-            max_tokens: 1000
+            max_tokens: 4000
         })
     });
 
@@ -232,7 +232,7 @@ async function askGemini(query: string, systemPrompt: string, history: ChatMessa
     const payload = {
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents: [...contents, { role: 'user', parts: [{ text: query }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 1500 }
+        generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
     };
 
     const response = await fetch(apiUrl, {
