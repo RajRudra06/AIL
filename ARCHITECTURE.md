@@ -15,12 +15,12 @@ The source code is located in the `src/` directory, divided cleanly into pipelin
 ```text
 src/
 ├── extension.ts           # The main entry point (registers commands and Webview)
-├── orchestrator.ts        # The master runner that triggers Layers 1-5 sequentially
-├── layer1/                # Workspace Ingestion
-├── layer2/                # AST Parsing (web-tree-sitter) & Complexity
-├── layer3/                # Git Data (Commits, Churn, Blast Radius)
-├── layer4/                # Graph Unification & RPI Scoring
-├── layer5/                # AI Chat & GraphRAG Engine
+├── orchestrator.ts        # The master runner
+├── layer1/                # Layer 1: Workspace Ingestion
+├── layer2/                # Layer 2: AST Parsing (web-tree-sitter) & Complexity
+├── layer3/                # Layer 3: Git Data (Commits, Churn, Blast Radius)
+├── layer5/                # Layer 3: AI Chat & GraphRAG Engine
+├── layer4/                # Layer 4: Graph Unification & RPI Scoring
 └── panel/                 # The React/HTML Webview UI
 ```
 
@@ -58,24 +58,22 @@ The heaviest layer. We use `web-tree-sitter`.
 *   **Streaming**: We process files in batches (chunking) to avoid V8 memory heap limits on large monorepos.
 *   **Outputs**: `entities.json` (Classes, Functions), `imports.json` (Edges), and `complexity.json` (Cyclomatic scores).
 
-### Layer 3: Git History (`src/layer3/`)
-Discovers `.git` folders.
-*   **Raw CLI**: We use `child_process.execSync` to run raw git commands for speed.
+### Layer 3: Git Intelligence & GraphRAG (`src/layer3/` & `src/layer5/`)
+Combines raw Git history with LLM GraphRAG capabilities.
+*   **Raw CLI**: We use `child_process.execSync` to run raw git commands for speed (`layer3/`).
 *   **Key Checkpoints**: 
     *   `cp3_file_churn.ts` (How often files change).
     *   `cp4_co_change.ts` (Files changing in the exact same commit).
     *   `cp5_blast_radius.ts` (Traces Layer 2's `imports.json` backwards to see who is impacted when a file changes).
+*   **GraphRAG Engine** (`layer5/`): The LLM integration point.
+    *   `rag_engine.ts` intercepts user chat messages from the webview.
+    *   **Intent Classifier**: Uses regex to determine if the user needs *source code* (implementation intent), *git diffs* (commit intent), or just *metadata* (architectural intent).
+    *   Injects the targeted context and calls the AI API.
 
-### Layer 4: Unification (`src/layer4/`)
+### Layer 4: Unification & Knowledge Graph (`src/layer4/`)
 Merges L2 (Structure) and L3 (Git).
 *   **The RPI**: Calculates the Risk Priority Index by weighting Complexity, Churn, and Coupling.
 *   **Output**: `knowledge_graph.json`, the absolute ground truth of the system.
-
-### Layer 5: GraphRAG (`src/layer5/`)
-The LLM integration point.
-*   `rag_engine.ts` intercepts user chat messages from the webview.
-*   **Intent Classifier**: Uses regex to determine if the user needs *source code* (implementation intent), *git diffs* (commit intent), or just *metadata* (architectural intent).
-*   Injects the targeted context and calls the Azure or Gemini API.
 
 ## 5. Webview Architecture (`src/panel/`)
 

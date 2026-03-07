@@ -2,7 +2,7 @@
 
 AIL is an advanced VS Code Extension designed to automatically ingest, parse, and analyze massive code repositories, outputting a highly structured, unified **Knowledge Graph** of the entire codebase architecture. It includes an integrated AI **GraphRAG Assistant** to answer technical architectural questions with implementation-level precision.
 
-## The 5-Layer Intelligence Pipeline
+## The 4-Layer Intelligence Pipeline
 
 AIL processes your workspace through a deterministic multi-layer pipeline:
 
@@ -16,23 +16,18 @@ Uses `web-tree-sitter` via a RAM-optimized streaming architecture to parse every
 - **Builds Call Graphs:** Static tracing to map function calls.
 - **Calculates Complexity:** Scores cyclomatic complexity and nesting depth.
 
-### Layer 3: Git & Blast Radius Intelligence
-Extracts historical data directly via the Git CLI across all nested repositories.
+### Layer 3: Git Intelligence & Hybrid RAG
+Combines historical data with an integrated AI assistant to answer technical architectural questions.
 - **Co-Change Coupling:** Builds a co-change matrix to reveal hidden architectural bounds (files that always change together).
-- **Commit Blast Radius:** Computes the direct and transitive impact of every commit (which files were touched vs. which downstream files are impacted by imports).
+- **Commit Blast Radius:** Computes the direct and transitive impact of every commit.
 - **File Churn:** Identifies "Hot" vs. "Stale" files.
+- **Hybrid Code-Aware RAG:** Dynamically chooses between Metadata-only RAG and Implementation-Aware RAG.
+- **On-Demand Snippets:** Fetches actual source code snippets on-the-fly for queries.
 
 ### Layer 4: Knowledge Graph & Risk Scoring
-Merges structural logic (L2) with historical metrics (L3) into a unified graph.
+Merges structural logic (L2) with historical metrics & AI insights (L3) into a unified interactive graph.
 - **Risk Priority Index (RPI):** A proprietary score calculated as: `(Complexity * 0.4) + (Churn * 0.4) + (Coupling * 0.2)`.
 - Identifies critical hotspots where high complexity meets high volatility.
-
-### Layer 5: Hybrid Code-Aware RAG
-Powers the AI assistant with more than just metadata.
-- **Intent-Gated Retrieval:** Dynamically chooses between Metadata-only RAG (cheap/fast) and Implementation-Aware RAG (logic-deep).
-- **On-Demand Snippets:** Fetches actual source code snippets (`startLine` to `endLine`) on-the-fly for implementation queries.
-- **Dynamic Git Diffs:** Runs `git show` live to explain the logic behind specific commits.
-- **Graph Traversal:** Follows edges to provide topological context (Forward/Backward slicing).
 
 ---
 
@@ -47,7 +42,7 @@ AIL features a rich interactive webview containing:
    - **Risk Heatmap:** Color nodes by RPI (Green → Red).
    - **Impact Explorer:** Click a node to see its full transitive dependency chain.
    - **Coupling Clusters:** Groups files that co-change together.
-6. **Assistant:** A RAG-powered chat interface supporting **Azure OpenAI** and **Google Gemini 2.0 Flash**.
+6. **Assistant:** A RAG-powered chat interface supporting Azure OpenAI and Google Gemini.
 
 ---
 
@@ -57,7 +52,7 @@ AIL supports both Azure OpenAI and Google Gemini.
 
 1. Open VS Code **Settings** (`Ctrl + ,`).
 2. Search for **AIL**.
-3. **For Gemini (Recommended):**
+3. **For Google Gemini:**
    - Set `Ai Provider` to `gemini`.
    - Enter your `Gemini Api Key`.
    - Select `Gemini Model` (e.g., `gemini-2.0-flash`).
@@ -77,12 +72,12 @@ Instead of fuzzy semantic matching to find relationships, AIL mathematically ver
 graph TD
     A[VS Code Workspace] -->|Layer 1| B(Language & File Metrics)
     A -->|Layer 2 AST| C(Call Graphs & Complexity)
-    A -->|Layer 3 Git| D(Coupling & Blast Radius)
+    A -->|Layer 3 Git/RAG| D(Coupling, Blast Radius & AI Context)
     B --> E{Layer 4: Unification}
     C --> E
     D --> E
     E --> F[Risk Priority Index / RPI]
-    F -->|Layer 5 Hybrid RAG| H((Gemini / Azure))
-    F --> G[Interactive Dashboard]
+    F -->|Knowledge Graph| G[Interactive Dashboard]
+    F --> H((AI Models))
     H -.->|On-Demand Code & Diffs| G
 ```
