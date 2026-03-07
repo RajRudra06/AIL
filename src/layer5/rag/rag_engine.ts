@@ -174,8 +174,42 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
 
             // ── HYBRID: Inject code snippets only when intent warrants it ──
             if (wantsCode) {
+                // 1. Run git grep to quickly locate actual implementation contents mapping the search
+                const grepMatchedFiles = new Set<string>();
+                try {
+                    // Filter out short terms to prevent matching everything
+                    const meaningfulTerms = queryTerms.filter(t => t.length > 3);
+                    if (meaningfulTerms.length > 0) {
+                        // Bounded grep - finding up to 10 files that match the terms
+                        const grepRegex = meaningfulTerms.join('|');
+                        const rawGrep = execSync(`git grep -Il "${grepRegex}" || true`, {
+                            cwd: workspacePath,
+                            encoding: 'utf-8',
+                            timeout: 2000
+                        });
+                        
+                        const matchedLines = rawGrep.split('\n').filter(l => l.trim().length > 0).slice(0, 10);
+                        matchedLines.forEach(l => grepMatchedFiles.add(path.resolve(workspacePath, l)));
+                    }
+                } catch (e) {
+                    // git grep timeout/fail fallback silently
+                }
+
+                // Boost nodes that map to the exact grepped files
+                const candidateNodes = [...topNodes];
+                if (grepMatchedFiles.size > 0) {
+                     const boostedNodes = searchableNodes.filter(n => {
+                        const file = n.rawNode?.file;
+                        if (!file) return false;
+                        const absPath = path.resolve(workspacePath, file);
+                        return grepMatchedFiles.has(absPath) && !candidateNodes.find(cn => cn.id === n.id);
+                     }).slice(0, 3);
+                     
+                     boostedNodes.forEach(bn => candidateNodes.unshift({ id: bn.id, text: bn.text, score: 99, rawNode: bn.rawNode }));
+                }
+
                 const snippetChunks: string[] = [];
-                for (const n of topNodes.slice(0, 3)) {
+                for (const n of candidateNodes.slice(0, 3)) {
                     const raw = n.rawNode;
                     if (!raw || !raw.file || raw.type === 'module') { continue; }
                     const snippet = fetchCodeSnippet(

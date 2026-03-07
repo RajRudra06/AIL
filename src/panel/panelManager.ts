@@ -112,6 +112,15 @@ export class PanelManager {
                         PanelManager.sendDashboardData(panel);
                         break;
 
+                    case 'loadGraphs':
+                        const wsfGraph = vscode.workspace.workspaceFolders;
+                        if (wsfGraph) {
+                            import('./graphPanelManager.js').then(({ GraphPanelManager }) => {
+                                GraphPanelManager.createOrShow(context, wsfGraph[0].uri.fsPath);
+                            });
+                        }
+                        break;
+
                     case 'purgeData':
                         const wsf = vscode.workspace.workspaceFolders;
                         if (!wsf) { break; }
