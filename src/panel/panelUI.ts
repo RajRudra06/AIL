@@ -344,6 +344,36 @@ export function getPanelHTML(): string {
             </div>
         </div>
 
+        <!-- Risk Hotspots Table -->
+        <div class="data-panel">
+            <div class="data-header">
+                <div class="data-title">Risk Hotspots (RPI)</div>
+            </div>
+            <div class="scroll-area" id="risk-container">
+                <div class="empty-state">Run Layer 4 to calculate risk</div>
+            </div>
+        </div>
+
+        <!-- Blast Radius Table -->
+        <div class="data-panel">
+            <div class="data-header">
+                <div class="data-title">Blast Radius Analysis</div>
+            </div>
+            <div class="scroll-area" id="blast-container">
+                <div class="empty-state">Run Layer 3 for impact data</div>
+            </div>
+        </div>
+
+        <!-- Hidden Coupling Table -->
+        <div class="data-panel">
+            <div class="data-header">
+                <div class="data-title">Hidden Coupling</div>
+            </div>
+            <div class="scroll-area" id="coupling-container">
+                <div class="empty-state">Run Layer 3 for coupling data</div>
+            </div>
+        </div>
+
         <!-- Entities Table -->
         <div class="data-panel" style="grid-column: span 2; max-height: 500px;">
             <div class="data-header">
@@ -443,6 +473,8 @@ export function getPanelHTML(): string {
         const l2e = dashData.l2_entities;
         const l2c = dashData.l2_complexity;
         const l3c = dashData.l3_churn;
+        const l3b = dashData.l3_blast;
+        const l3p = dashData.l3_coupling;
         const l4 = dashData.l4_manifest;
 
         // 1. Overview Stats
@@ -456,9 +488,14 @@ export function getPanelHTML(): string {
                 html += statBox(l2.summary.totalCallEdges, 'Call Edges');
             }
             if (l3c) html += statBox(l3c.hotFiles?.length || 0, 'Hot Files');
+            if (l3b) html += statBox(l3b.avgBlastRadius || 0, 'Avg Blast');
+            if (l3p?.stronglyCoupled) html += statBox(l3p.stronglyCoupled.length, 'Couplings');
+
+            os.style.gridTemplateColumns = 'repeat(6, 1fr)';
             os.innerHTML = html;
         } else {
             document.getElementById('stats-dot').className = 'status-dot grey';
+            os.style.gridTemplateColumns = 'repeat(4, 1fr)';
             os.innerHTML = '<div class="empty-state" style="grid-column: span 4; padding: 20px;">Run Layer 1 analysis for project stats</div>';
         }
 
@@ -488,7 +525,51 @@ export function getPanelHTML(): string {
             chContainer.innerHTML = chHtml;
         }
 
-        // 5. Entities Table
+        // 5. Blast Radius Table
+        const blContainer = document.getElementById('blast-container');
+        if (l3b && l3b.highImpactCommits?.length) {
+            let blHtml = '<table><thead><tr><th>Commit</th><th>Author</th><th>Radius</th><th>Details</th></tr></thead><tbody>';
+            l3b.highImpactCommits.slice(0, 15).forEach(c => {
+                const radius = c.blastRadius;
+                const tag = radius > 15 ? '<span class="tag hot">HIGH</span>' : '';
+                blHtml += '<tr><td><span style="font-family:monospace; font-size:10px;">' + esc(c.hash.substring(0, 7)) + '</span></td><td>' + esc(c.author) + '</td><td style="color:' + (radius > 15 ? '#FFD43B' : '#51CF66') + ';">' + radius + ' ' + tag + '</td><td>' + esc(c.message) + '</td></tr>';
+            });
+            blHtml += '</tbody></table>';
+            blContainer.innerHTML = blHtml;
+        }
+
+        // 6. Hidden Coupling Table
+        const coContainer = document.getElementById('coupling-container');
+        if (l3p && l3p.pairs?.length) {
+            let coHtml = '<table><thead><tr><th>File A</th><th>File B</th><th>Coupling</th></tr></thead><tbody>';
+            l3p.pairs.slice(0, 15).forEach(p => {
+                const perc = Math.round(p.couplingStrength * 100);
+                const tag = p.couplingStrength > 0.6 ? '<span class="tag hot">STRONG</span>' : '';
+                coHtml += '<tr><td>' + esc(p.fileA.split(/[\\\\/]/).pop()) + '</td><td>' + esc(p.fileB.split(/[\\\\/]/).pop()) + '</td><td style="color:' + (p.couplingStrength > 0.6 ? '#FFD43B' : '#51CF66') + ';">' + perc + '% ' + tag + '</td></tr>';
+            });
+            coHtml += '</tbody></table>';
+            coContainer.innerHTML = coHtml;
+        }
+
+        // 7. Risk Hotspots Table
+        const rkContainer = document.getElementById('risk-container');
+        const l4s = dashData.l4_summary;
+        if (l4s && l4s.riskHotspots?.length) {
+            let rkHtml = '<table><thead><tr><th>Entity</th><th>File</th><th>Risk Score</th></tr></thead><tbody>';
+            l4s.riskHotspots.slice(0, 15).forEach(r => {
+                const score = r.riskScore.toFixed(2);
+                let tag = '';
+                let color = '#51CF66'; // low
+                if (r.level === 'critical') { tag = '<span class="tag hot">CRITICAL</span>'; color = '#ff4a4a'; }
+                else if (r.level === 'high') { tag = '<span class="tag hot" style="background:#8f4f00; color:#ffd43b;">HIGH</span>'; color = '#FFD43B'; }
+                else if (r.level === 'medium') { tag = '<span class="tag" style="background:#1a365d; color:#90cdf4;">MEDIUM</span>'; color = '#90cdf4'; }
+                rkHtml += '<tr><td><strong>' + esc(r.name) + '</strong></td><td>' + esc(r.file.split(/[\\\\/]/).pop()) + '</td><td style="color:' + color + ';">' + score + ' ' + tag + '</td></tr>';
+            });
+            rkHtml += '</tbody></table>';
+            rkContainer.innerHTML = rkHtml;
+        }
+
+        // 8. Entities Table
         const etContainer = document.getElementById('entities-container');
         if (l2e && l2e.entities?.length) {
             let etHtml = '<table><thead><tr><th>Entity Name</th><th>Type</th><th>File</th><th>Loc</th></tr></thead><tbody>';
