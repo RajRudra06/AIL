@@ -3,6 +3,9 @@
     flex-direction: column;
     gap: 20px;
     font-family: 'Inter', sans-serif;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    word-wrap: break-word;
 }
 
 .summary-segment {

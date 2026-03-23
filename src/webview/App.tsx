@@ -10,15 +10,39 @@ const App: React.FC = () => {
     const [graphData, setGraphData] = useState<any>(null);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
+    const [sidebarWidth, setSidebarWidth] = useState(300);
 
     // Use Refs to bypass stale closures for callbacks bound inside nodes
     const graphDataRef = React.useRef<any>(null);
     const nodesRef = React.useRef<Node[]>([]);
     const edgesRef = React.useRef<Edge[]>([]);
+    const isResizing = React.useRef<boolean>(false);
 
     useEffect(() => { graphDataRef.current = graphData; }, [graphData]);
     useEffect(() => { nodesRef.current = nodes; }, [nodes]);
     useEffect(() => { edgesRef.current = edges; }, [edges]);
+
+    // Sidebar Resizing Logic
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing.current) return;
+            const newWidth = Math.min(e.clientX, window.innerWidth - 100);
+            // Snap to 0 if dragged too far left
+            setSidebarWidth(newWidth < 60 ? 0 : newWidth);
+        };
+        const handleMouseUp = () => {
+            if (isResizing.current) {
+                isResizing.current = false;
+                document.body.style.cursor = 'default';
+            }
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, []);
 
     // Listen for messages from the VS Code Extension Host
     useEffect(() => {
@@ -203,9 +227,37 @@ const App: React.FC = () => {
             </div>
             
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                <div style={{ width: '300px', borderRight: '1px solid #333', padding: '20px', overflowY: 'auto', background: '#1e1e1e', zIndex: 10 }}>
+                <div style={{ 
+                    width: `${sidebarWidth}px`, 
+                    minWidth: `${sidebarWidth}px`, 
+                    padding: sidebarWidth > 0 ? '20px' : '0px', 
+                    overflowY: 'auto', 
+                    background: '#1e1e1e', 
+                    zIndex: 10,
+                    transition: isResizing.current ? 'none' : 'width 0.2s ease, min-width 0.2s ease'
+                }}>
                     <SummaryPanel markdown={graphData ? graphData.report : ''} />
                 </div>
+                
+                {/* Resizer Handle */}
+                <div 
+                    title="Resize Sidebar"
+                    style={{ 
+                        width: '4px', 
+                        cursor: 'col-resize', 
+                        background: '#333', 
+                        zIndex: 20,
+                        transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#0078d4'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
+                    onMouseDown={(e) => {
+                        e.preventDefault();
+                        isResizing.current = true;
+                        document.body.style.cursor = 'col-resize';
+                    }}
+                />
+
                 <div style={{ flex: 1, position: 'relative' }}>
                     {nodes.length > 0 ? (
                         <GraphLayout 
