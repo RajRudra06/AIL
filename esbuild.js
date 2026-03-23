@@ -59,7 +59,8 @@ const copyWasmPlugin = {
 };
 
 async function main() {
-	const ctx = await esbuild.context({
+	// 1. Build the Extension Host (Node.js environment)
+	const extCtx = await esbuild.context({
 		entryPoints: [
 			'src/extension.ts'
 		],
@@ -77,11 +78,33 @@ async function main() {
 			esbuildProblemMatcherPlugin,
 		],
 	});
+
+	// 2. Build the Webview UI (Browser environment with React)
+	const webviewCtx = await esbuild.context({
+		entryPoints: [
+			'src/webview/index.tsx' // We will create this
+		],
+		bundle: true,
+		format: 'iife',     // Immediately Invoked Function Expression for browser
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		platform: 'browser', // Browser environment
+		outfile: 'dist/webview.js',
+		logLevel: 'silent',
+		plugins: [
+			esbuildProblemMatcherPlugin,
+		],
+	});
+
 	if (watch) {
-		await ctx.watch();
+		await extCtx.watch();
+		await webviewCtx.watch();
 	} else {
-		await ctx.rebuild();
-		await ctx.dispose();
+		await extCtx.rebuild();
+		await extCtx.dispose();
+		await webviewCtx.rebuild();
+		await webviewCtx.dispose();
 	}
 }
 

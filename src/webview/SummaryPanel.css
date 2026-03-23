@@ -1,0 +1,60 @@
+.summary-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    font-family: 'Inter', sans-serif;
+}
+
+.summary-segment {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.segment-heading {
+    margin: 0 0 14px 0;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 10px;
+}
+
+/* Cycle through tasteful neon colors for different segment headings */
+.summary-segment:nth-child(1n) .segment-heading { color: #00e5ff; text-shadow: 0 0 8px rgba(0, 229, 255, 0.4); } /* Neon Cyan */
+.summary-segment:nth-child(2n) .segment-heading { color: #bd00ff; text-shadow: 0 0 8px rgba(189, 0, 255, 0.4); } /* Neon Magenta */
+.summary-segment:nth-child(3n) .segment-heading { color: #ff0066; text-shadow: 0 0 8px rgba(255, 0, 102, 0.4); } /* Neon Pink */
+.summary-segment:nth-child(4n) .segment-heading { color: #00ff88; text-shadow: 0 0 8px rgba(0, 255, 136, 0.4); } /* Neon Green */
+
+.segment-content p {
+    margin: 0 0 10px 0;
+    line-height: 1.6;
+    font-size: 13px;
+    color: #cbd5e1;
+}
+
+.segment-content p:last-child {
+    margin-bottom: 0;
+}
+
+.segment-content li {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #cccccc;
+    margin-bottom: 4px;
+    margin-left: -16px;
+}
+
+.blockquote {
+    border-left: 3px solid #569cd6;
+    padding-left: 12px;
+    margin: 8px 0;
+    color: #9cdcfe;
+    font-size: 13px;
+    font-style: italic;
+}
