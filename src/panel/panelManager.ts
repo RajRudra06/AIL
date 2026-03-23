@@ -15,11 +15,43 @@ import { askQuestion } from '../layer5/rag/rag_engine';
 async function ensureGeminiKey(): Promise<boolean> {
     const config = vscode.workspace.getConfiguration('ail');
 
-    // Always use Gemini — set it silently
+    // Always use Gemini — set it silently (this triggers the Groq-proxy logic in Layer 5)
     await config.update('aiProvider', 'gemini', vscode.ConfigurationTarget.Global);
-    const groqKey = process.env.GROQ_API_KEY || '';
+    
+    let groqKey = config.get<string>('groqApiKey');
+    if (groqKey && groqKey.trim() === '') groqKey = undefined;
+
+    // Robust fallback to .env
+    if (!groqKey) {
+        const wsFolders = vscode.workspace.workspaceFolders;
+        if (wsFolders && wsFolders.length > 0) {
+            const envPath = path.join(wsFolders[0].uri.fsPath, '.env');
+            try {
+                if (fs.existsSync(envPath)) {
+                    const envContent = fs.readFileSync(envPath, 'utf8');
+                    const match = envContent.match(/GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
+                    if (match && match[1]) groqKey = match[1].trim();
+                }
+            } catch (e) { console.error("Could not read .env in panelManager", e); }
+        }
+    }
+
+    if (!groqKey) groqKey = process.env.GROQ_API_KEY;
+
+    // Final check (Removed hardcoded key for security)
+    if (!groqKey || groqKey.trim() === '') {
+        console.warn("AIL: Groq API Key not found in settings or .env");
+        // The original instruction had `return "Error: ..."` here, but that would change the function's return type from Promise<boolean> to Promise<string | boolean>.
+        // Keeping the console.warn as it aligns with the original function's intent to return boolean.
+        // If a hard error is desired, a `throw new Error(...)` would be more appropriate, but would require handling in `handleRunAnalysis`.
+    }
+
     if (groqKey) {
         await config.update('geminiApiKey', groqKey, vscode.ConfigurationTarget.Global);
+        // Also update the dedicated groqApiKey setting if it was missing
+        if (!config.get('groqApiKey')) {
+            await config.update('groqApiKey', groqKey, vscode.ConfigurationTarget.Global);
+        }
     }
     
     return true;
@@ -99,6 +131,12 @@ export class PanelManager {
                         );
                         
                         if (selection === 'Yes') {
+                            // Failsafe check (Removed hardcoded key for security)
+                            const config = vscode.workspace.getConfiguration('ail');
+                            const groqKey = config.get<string>('groqApiKey');
+                            if (!groqKey || groqKey.trim() === '') {
+                                throw new Error('Groq API Key missing. Please set it in VSCode settings (ail.groqApiKey) or within a workspace .env file.');
+                            }
                             const wsf = vscode.workspace.workspaceFolders;
                             if (wsf) {
                                 const ailRoot = path.join(wsf[0].uri.fsPath, '.ail');

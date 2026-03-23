@@ -59,10 +59,10 @@ h2, h3 {
 .control-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   background: rgba(20, 20, 30, 0.85);
-  padding: 10px;
-  border-radius: 8px;
+  padding: 6px;
+  border-radius: 6px;
   border: 1px solid rgba(0, 229, 255, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -80,14 +80,14 @@ h2, h3 {
   background: rgba(30, 30, 45, 0.9);
   color: #94a3b8;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  width: 36px;
-  height: 36px;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 11px;
   line-height: 1;
   transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
   outline: none;
@@ -109,7 +109,7 @@ h2, h3 {
   background: rgba(0, 229, 255, 0.1);
   color: #00e5ff;
   border-color: rgba(0, 229, 255, 0.4);
-  font-size: 14px;
+  font-size: 9px;
 }
 
 .control-btn.center-btn:hover {

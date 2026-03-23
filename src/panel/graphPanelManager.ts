@@ -163,14 +163,19 @@ export class GraphPanelManager {
             console.error('[AIL] Error reading graph data:', err);
         }
 
-        // Send initial data to webview so graph renders instantly with a loading message for the summary
+        // Send initial data to webview so graph renders instantly
         GraphPanelManager.currentPanel.webview.postMessage({
             command: 'loadGraphData',
             data: {
                 graph: graphData,
                 coupling: couplingData,
-                report: '> **Generating English Architectural Summary via LLM...**\n\nPlease wait while your chosen AI Provider analyzes the structure.'
             }
+        });
+
+        // Send loading message for the summary
+        GraphPanelManager.currentPanel.webview.postMessage({
+            command: 'updateSummary',
+            report: '<LOADING>'
         });
 
         // Fire and forget LLM summary generation
@@ -214,27 +219,72 @@ export class GraphPanelManager {
         High Risk Files: ${(summary.riskHotspots || []).filter((r:any)=>r.level==='high').length}
         `;
 
-        const prompt = `You are an expert software architect AI. The user is looking at an architectural node graph of their codebase. They want a purely English-based summary of this system, without markdown tables or lists. 
-Based on these raw stats:\n${rawStats}\n
-Write a concise, highly insightful, 3-4 paragraph English summary explaining what this codebase likely does, its dominant languages, its architectural heart (core modules), and its overall health. Use a professional, slightly analytical tone. Make it visually beautiful to read (bolding key terms). DO NOT output any raw tables or bullet point lists.`;
+        const prompt = `You are an expert architecture AI agent.
 
-        if (provider === 'gemini') {
-            const apiKey = config.get<string>('geminiApiKey');
-            const model = config.get<string>('geminiModel') || 'gemini-2.0-flash';
-            if (!apiKey) throw new Error('Gemini API Key missing');
+Based on the raw data below, generate a purely English-based structural summary of the repository.
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+Raw Repo Data:
+${rawStats}
+
+You MUST output exactly 4 sections. Each section must start with a Markdown heading 3 (###) exactly as formatted below. Do NOT use long paragraphs. Instead, use highly concise, point-wise bulleted lists to make the information extremely scannable and structured. Bold important terms.
+
+### 1. Codebase Overview
+In 2-3 concise bullet points, explain what this codebase likely does, its primary languages, its scale, and its core modules.
+
+### 2. Function Calls & Interactions
+In 2-3 concise bullet points, summarize how the functions and entities interact, control flow, and execution model.
+
+### 3. Repository Directory Structure
+In 2-3 concise bullet points, summarize how the repository is organized and the structural grouping of the files.
+
+### 4. Dashboard Properties Analysis
+For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Complexity, File Churn, Blast Radius, Hidden Coupling), provide exactly ONE highly insightful bullet point explaining what it means for the maintainability of THIS specific project. Do NOT just list the raw stats.`;
+
+        if (provider === 'groq' || provider === 'gemini') {
+            let apiKey = config.get<string>('groqApiKey');
+            if (apiKey && apiKey.trim() === '') apiKey = undefined;
+            
+            // Aggressive fallback to workspace .env file
+            if (!apiKey) {
+                const wsFolders = vscode.workspace.workspaceFolders;
+                if (wsFolders && wsFolders.length > 0) {
+                    const envPath = require('path').join(wsFolders[0].uri.fsPath, '.env');
+                    try {
+                        if (require('fs').existsSync(envPath)) {
+                            const envContent = require('fs').readFileSync(envPath, 'utf8');
+                            const match = envContent.match(/GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
+                            if (match && match[1]) apiKey = match[1].trim();
+                        }
+                    } catch (e) { console.error("Could not read .env", e); }
+                }
+            }
+            // Failsafe check (Removed hardcoded key for security)
+            if (!apiKey || apiKey.trim() === '') {
+                throw new Error('Groq API Key missing. Please set it in VSCode settings (ail.groqApiKey) or within a workspace .env file.');
+            }
+
+            const model = 'llama-3.3-70b-versatile'; // Using bleeding-edge robust LLaMA 3.3 on Groq
+            if (!apiKey) throw new Error('Groq API Key missing. Please set it in VSCode settings or within a workspace .env file.');
+
+            const url = "https://api.groq.com/openai/v1/chat/completions";
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.3 }
+                    model: model,
+                    messages: [
+                        { role: 'system', content: 'You are an architecture summarizing agent.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.3
                 })
             });
             const data: any = await response.json();
             if (data.error) throw new Error(data.error.message);
-            return data.candidates[0].content.parts[0].text;
+            return data.choices[0].message.content;
         } else {
             // Azure OpenAI
             const endpoint = config.get<string>('azureOpenAiEndpoint');

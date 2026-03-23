@@ -45,19 +45,41 @@
     margin-bottom: 0;
 }
 
-.segment-content li {
+.segment-list {
+    margin: 6px 0 14px 22px;
+    padding: 0;
+    list-style-type: disc;
+}
+
+.segment-list li {
     font-size: 13px;
     line-height: 1.5;
     color: #cccccc;
-    margin-bottom: 4px;
-    margin-left: -16px;
+    margin-bottom: 6px;
+}
+
+.segment-list li strong {
+    color: #ffffff;
+    font-weight: 600;
 }
 
 .blockquote {
-    border-left: 3px solid #569cd6;
+    border-left: 3px solid #4a9eff;
     padding-left: 12px;
-    margin: 8px 0;
-    color: #9cdcfe;
-    font-size: 13px;
+    color: #858585;
     font-style: italic;
+    margin: 8px 0;
+}
+
+.ail-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(74, 158, 255, 0.15);
+    border-radius: 50%;
+    border-top-color: #4a9eff;
+    animation: ail-spin 1s ease-in-out infinite;
+}
+
+@keyframes ail-spin {
+    to { transform: rotate(360deg); }
 }

@@ -66,7 +66,7 @@ const App: React.FC = () => {
     const buildNode = (nodeData: any, depth: number, edgesData: any[], isExpanded: boolean = false): Node => {
         const id = nodeData.id;
         const label = nodeData.name || id;
-        
+
         // Check if there are outgoing calls from this function in the graph payload
         const hasChildren = edgesData.some((e: any) => e.source === id);
 
@@ -90,28 +90,28 @@ const App: React.FC = () => {
 
     const initializeGraph = (data: any) => {
         if (!data || !data.graph || !data.graph.nodes) return;
-        
+
         const nodesData: any[] = data.graph.nodes;
         const edgesData: any[] = data.graph.edges || [];
-        
+
         let rootNode: any = null;
-        
+
         if (nodesData.length > 0) {
             // Find a node with no incoming edges if possible
             const incomingCounts: Record<string, number> = {};
             edgesData.forEach(e => {
                 incomingCounts[e.target] = (incomingCounts[e.target] || 0) + 1;
             });
-            
+
             // Try to find a function node (not file) with no incoming edges or fallback to the first function
-            rootNode = nodesData.find(n => n.type === 'function' && !incomingCounts[n.id]) 
-                       || nodesData.find(n => n.type === 'function') 
-                       || nodesData[0];
+            rootNode = nodesData.find(n => n.type === 'function' && !incomingCounts[n.id])
+                || nodesData.find(n => n.type === 'function')
+                || nodesData[0];
         }
 
         if (rootNode) {
             const root = buildNode(rootNode, 1, edgesData, false);
-            
+
             // Layout through Dagre immediately
             const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements([root], [], 'LR');
             setNodes(layoutedNodes);
@@ -128,7 +128,7 @@ const App: React.FC = () => {
 
         const targetNodeIndex = currentNodes.findIndex(n => n.id === nodeId);
         if (targetNodeIndex === -1) return;
-        
+
         const targetNode = currentNodes[targetNodeIndex];
         const currentEdgesData = currentGraphData.graph.edges || [];
 
@@ -136,13 +136,13 @@ const App: React.FC = () => {
             // Collapse logic: Remove all descendants
             const descendants = getDescendants(nodeId, currentEdges, currentNodes);
             const descendantIds = new Set(descendants.map(d => d.id));
-            
+
             const newNodes = currentNodes
                 .filter(n => !descendantIds.has(n.id))
                 .map(n => n.id === nodeId ? { ...n, data: { ...n.data, isExpanded: false } } : n);
-            
+
             const newEdges = currentEdges.filter(e => !descendantIds.has(e.target) && !descendantIds.has(e.source));
-            
+
             const layouted = getLayoutedElements(newNodes, newEdges, 'LR');
             setNodes(layouted.nodes);
             setEdges(layouted.edges);
@@ -152,23 +152,23 @@ const App: React.FC = () => {
         // Expand logic: Add immediate children
         const childEdges = currentEdgesData.filter((e: any) => e.source === nodeId);
         const currentDepth = targetNode.data.depth as number;
-        
+
         let newChildNodes: Node[] = [];
         let newReactFlowEdges: Edge[] = [];
 
         childEdges.forEach((edge: any) => {
             // Prioritize resolved code nodes over unresolved duplicates by checking for "::"
             let childNodeData = (currentGraphData.graph.nodes || []).find((n: any) => n.id.endsWith(`::${edge.target}`) && n.type !== 'file');
-            
+
             if (!childNodeData) {
                 childNodeData = (currentGraphData.graph.nodes || []).find((n: any) => n.name === edge.target || n.id === edge.target);
             }
-            
+
             if (!childNodeData) return;
             if (currentNodes.some(n => n.id === childNodeData.id)) return;
 
             newChildNodes.push(buildNode(childNodeData, currentDepth + 1, currentEdgesData, false));
-            
+
             newReactFlowEdges.push({
                 id: `${nodeId}-${childNodeData.id}`,
                 source: nodeId,
@@ -225,27 +225,27 @@ const App: React.FC = () => {
                     <button className="view-btn disabled">Overall Graph</button>
                 </div>
             </div>
-            
+
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                <div style={{ 
-                    width: `${sidebarWidth}px`, 
-                    minWidth: `${sidebarWidth}px`, 
-                    padding: sidebarWidth > 0 ? '20px' : '0px', 
-                    overflowY: 'auto', 
-                    background: '#1e1e1e', 
+                <div style={{
+                    width: `${sidebarWidth}px`,
+                    minWidth: `${sidebarWidth}px`,
+                    padding: sidebarWidth > 0 ? '20px' : '0px',
+                    overflowY: 'auto',
+                    background: '#1e1e1e',
                     zIndex: 10,
                     transition: isResizing.current ? 'none' : 'width 0.2s ease, min-width 0.2s ease'
                 }}>
                     <SummaryPanel markdown={graphData ? graphData.report : ''} />
                 </div>
-                
+
                 {/* Resizer Handle */}
-                <div 
+                <div
                     title="Resize Sidebar"
-                    style={{ 
-                        width: '4px', 
-                        cursor: 'col-resize', 
-                        background: '#333', 
+                    style={{
+                        width: '4px',
+                        cursor: 'col-resize',
+                        background: '#333',
                         zIndex: 20,
                         transition: 'background 0.2s ease'
                     }}
@@ -260,9 +260,9 @@ const App: React.FC = () => {
 
                 <div style={{ flex: 1, position: 'relative' }}>
                     {nodes.length > 0 ? (
-                        <GraphLayout 
-                            nodes={nodes} 
-                            edges={edges} 
+                        <GraphLayout
+                            nodes={nodes}
+                            edges={edges}
                         />
                     ) : (
                         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#888' }}>

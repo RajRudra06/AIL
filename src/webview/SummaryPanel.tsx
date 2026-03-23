@@ -6,10 +6,10 @@ interface SummaryPanelProps {
 }
 
 export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
-    if (!markdown) {
+    if (!markdown || markdown === '<LOADING>') {
         return (
-            <div className="summary-panel">
-                <p style={{ color: '#888' }}>Loading architecture analysis...</p>
+            <div className="summary-panel" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <div className="ail-spinner"></div>
             </div>
         );
     }
@@ -22,9 +22,19 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
     let currentHeading = '';
     let currentContent: React.ReactNode[] = [];
     let isCodeBlock = false;
-    let blockQuoteLevel = 0;
+    let inList = false;
+    let listItems: React.ReactNode[] = [];
+
+    const flushList = () => {
+        if (inList && listItems.length > 0) {
+            currentContent.push(<ul key={`ul-${segments.length}-${currentContent.length}`} className="segment-list">{listItems}</ul>);
+            listItems = [];
+            inList = false;
+        }
+    };
 
     const flushSegment = () => {
+        flushList();
         if (currentHeading || currentContent.length > 0) {
             segments.push(
                 <div key={segments.length} className="summary-segment">
@@ -34,51 +44,49 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
             );
             currentContent = [];
             currentHeading = '';
-            blockQuoteLevel = 0;
         }
+    };
+
+    const formatText = (text: string) => {
+        return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     };
 
     lines.forEach((line, index) => {
         const trimmed = line.trim();
         
-        // Handle code blocks (ignore formatting inside)
         if (trimmed.startsWith('```')) {
             isCodeBlock = !isCodeBlock;
             return;
         }
-        if (isCodeBlock) return; // Skip raw code blocks in the summary
+        if (isCodeBlock) return; 
 
-        // Handle Headings (H1/H2/H3) -> Trigger a new segment
         if (trimmed.startsWith('#')) {
             flushSegment();
             currentHeading = trimmed.replace(/^#+\s*/, '');
             return;
         }
 
-        // Handle blockquotes
         if (trimmed.startsWith('>')) {
-            blockQuoteLevel++;
+            flushList();
             currentContent.push(<div key={index} className="blockquote">{trimmed.replace(/^>\s*/, '')}</div>);
             return;
         }
 
-        // Handle list items
         if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-            currentContent.push(<li key={index}>{trimmed.substring(2)}</li>);
+            inList = true;
+            const contentHtml = formatText(trimmed.substring(2));
+            listItems.push(<li key={index} dangerouslySetInnerHTML={{ __html: contentHtml }} />);
             return;
         }
 
-        // Handle bolding (*text* or **text**) - very basic regex
-        let formattedLine = trimmed;
-        // Just push standard paragraphs if there's text
+        flushList();
         if (trimmed.length > 0) {
-            // we use dangerouslySetInnerHTML for a tiny bit of bold parsing
-            const html = formattedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            const html = formatText(trimmed);
             currentContent.push(<p key={index} dangerouslySetInnerHTML={{ __html: html }} />);
         }
     });
 
-    flushSegment(); // Flush the final segment
+    flushSegment();
 
     return (
         <div className="summary-panel">
