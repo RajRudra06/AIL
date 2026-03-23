@@ -14,7 +14,7 @@ export function runCheckpoint7(manifest: Layer3Manifest): void {
         `${s.stronglyCoupledPairs} coupled pairs`,
         `avg blast radius: ${s.avgBlastRadius}`,
     ].join(' · ');
-
-    vscode.window.showInformationMessage(msg);
+    // Console log only
+    // vscode.window.showInformationMessage(msg);
     console.log('AIL L3-CP7 |', msg);
 }

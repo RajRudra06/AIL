@@ -4,654 +4,764 @@ export function getPanelHTML(): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://unpkg.com; script-src 'unsafe-inline' 'unsafe-eval' https://unpkg.com; font-src https://unpkg.com; img-src 'self' data: https:;">
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https:;">
     <title>AIL Mission Control</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background:     #1e1e1e;
-            color:          #d4d4d4;
-            font-family:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            height:         100vh;
-            overflow:       hidden;
-            display:        flex;
-            flex-direction: column;
-        }
-
-        /* ── HEADER ─────────────────────────────────────── */
-        #header {
-            background:    #252526;
-            border-bottom: 1px solid #3e3e42;
-            padding:       20px 32px;
-            display:       flex;
-            justify-content: space-between;
-            align-items:   center;
-        }
-
-        #header h1 {
-            font-size:   20px;
-            font-weight: 700;
-            color:       #ffffff;
-            letter-spacing: -0.5px;
-        }
-
-        #header p {
-            font-size:  12px;
-            color:      #858585;
-            margin-top: 4px;
-        }
-
-        /* ── MAIN LAYOUT ────────────────────────────────── */
-        .workspace {
-            display: flex;
-            flex: 1;
+            background: #0e0e10;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            height: 100vh;
             overflow: hidden;
         }
 
-        .sidebar {
-            width: 380px;
-            background: #1e1e1e;
-            border-right: 1px solid #3e3e42;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 24px;
-            gap: 16px;
-            flex-shrink: 0;
-        }
+        .screen { display: none; height: 100vh; position: relative; }
+        .screen.active { display: flex; }
 
-        .dashboard {
-            flex: 1;
-            padding: 24px;
-            overflow-y: auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-auto-rows: min-content;
-            gap: 20px;
-            background: #1e1e1e;
-        }
-
-        /* ── CARD COMPONENTS ────────────────────────────── */
-        .card {
-            background:    #252526;
-            border:        1px solid #3e3e42;
-            border-radius: 10px;
-            padding:       20px;
-            display:       flex;
-            gap:           16px;
-        }
-
-        .card.summary-card { align-items: center; }
-
-        .card-icon {
-            font-size:   24px;
-            width:       44px;
-            height:      44px;
-            display:     flex;
+        /* ── LANDING ────────────────────────────────── */
+        #landing {
             align-items: center;
             justify-content: center;
-            border-radius: 10px;
-            flex-shrink: 0;
+            flex-direction: column;
+            gap: 36px;
         }
-        .card-icon.blue   { background: rgba(74, 158, 255, 0.1); }
-        .card-icon.green  { background: rgba(81, 207, 102, 0.1); }
 
-        .card-body { flex: 1; min-width: 0; }
-        .card-title { font-size: 14px; font-weight: 600; color: #ffffff; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
-        .card-desc { font-size: 11px; color: #858585; line-height: 1.4; }
+        .landing-brand { text-align: center; }
+        .landing-brand .logo-icon { font-size: 48px; margin-bottom: 14px; display: block; }
+        .landing-brand h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+        .landing-brand h1 span { background: linear-gradient(135deg, #4a9eff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .landing-brand .tagline { font-size: 13px; color: #858585; margin-top: 8px; max-width: 460px; line-height: 1.6; }
 
-        .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-        .status-dot.green  { background: #51CF66; }
-        .status-dot.yellow { background: #FFD43B; }
-        .status-dot.grey   { background: #555; }
+        .landing-status { text-align: center; font-size: 12px; color: #6b6b7b; }
+        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+        .status-badge.found { background: rgba(81,207,102,0.12); color: #51CF66; }
+        .status-badge.none { background: rgba(135,135,155,0.12); color: #858585; }
 
-        /* Buttons */
-        .btn {
-            background:    #0078d4;
-            border:        none;
-            color:         #ffffff;
-            padding:       6px 14px;
-            border-radius: 4px;
-            font-size:     12px;
-            font-weight:   500;
-            cursor:        pointer;
-            white-space:   nowrap;
-            transition:    background 0.15s;
-        }
-        .btn:hover { background: #0090f1; }
-        .btn.outline { background: transparent; border: 1px solid #3e3e42; color: #d4d4d4; }
-        .btn.outline:hover { background: #3e3e42; }
-        .btn:disabled { background: #3e3e42; color: #858585; cursor: not-allowed; border: none; }
+        .landing-actions { display: flex; gap: 20px; align-items: stretch; }
 
-        /* ── SUMMARY STATS GRIDS ────────────────────────── */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 14px;
-        }
-        .stat-box {
-            background: #1e1e1e;
-            border: 1px solid #3e3e42;
-            border-radius: 6px;
-            padding: 10px;
-            text-align: center;
-        }
-        .stat-val { font-size: 18px; font-weight: 700; color: #fff; line-height: 1; }
-        .stat-label { font-size: 10px; color: #858585; text-transform: uppercase; margin-top: 4px; }
-
-        /* ── PIPELINE LIST ──────────────────────────────── */
-        .pipeline-list {
-            background: #252526;
-            border: 1px solid #3e3e42;
-            border-radius: 10px;
-            padding: 20px;
-        }
-        
-        .layer-row {
-            display: flex;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #2d2d30;
-            gap: 12px;
-        }
-        .layer-row:last-child { border-bottom: none; }
-        .layer-info { flex: 1; min-width: 0; }
-        .layer-name { font-size: 12.5px; font-weight: 600; color: #d4d4d4; }
-        .layer-state { font-size: 11px; color: #555; width: 90px; text-align: right; margin-right: 8px;}
-        .layer-state.complete { color: #51CF66; }
-        .layer-state.running  { color: #FFD43B; }
-
-        /* ── DATA TABLES ────────────────────────────────── */
-        .data-panel {
-            background: #252526;
-            border: 1px solid #3e3e42;
-            border-radius: 10px;
+        .action-card {
+            background: #1a1a1f;
+            border: 1px solid #2d2d35;
+            border-radius: 12px;
+            padding: 28px 24px;
+            width: 280px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            max-height: 400px;
+            gap: 12px;
+            transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .action-card:hover:not(.disabled) { border-color: #4a9eff; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(74,158,255,0.08); }
+        .action-card.disabled { opacity: 0.35; cursor: not-allowed; }
+        .action-card .card-icon { font-size: 28px; }
+        .action-card h3 { font-size: 15px; font-weight: 600; color: #fff; }
+        .action-card p { font-size: 11.5px; color: #858585; line-height: 1.55; flex: 1; }
+        .action-card .card-btn {
+            background: #4a9eff; border: none; color: #fff; padding: 10px 0; border-radius: 6px;
+            font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; text-align: center;
+        }
+        .action-card .card-btn:hover { background: #3d8be5; }
+        .action-card.disabled .card-btn { background: #2d2d35; color: #555; cursor: not-allowed; pointer-events: none; }
+
+        /* ── GLASS PROGRESS OVERLAY ──────────────────── */
+        #progress-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1000;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.6);
+            align-items: center;
+            justify-content: center;
+        }
+        #progress-overlay.active { display: flex; }
+
+        .glass-card {
+            background: rgba(30, 30, 38, 0.85);
+            border: 1px solid rgba(74, 158, 255, 0.15);
+            border-radius: 16px;
+            padding: 36px 44px;
+            width: 420px;
+            text-align: center;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
         }
 
-        /* ── CHAT AGENT ─────────────────────────────────── */
-        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
-        .chat-bubble.ai { background: #2d2d30; align-self: flex-start; color: #d4d4d4; }
-        .chat-bubble.user { background: #0078d4; align-self: flex-end; color: #fff; }
-        .chat-disabled { opacity: 0.5; pointer-events: none; }
-        .chat-input { flex: 1; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; font-size: 12px; outline: none; }
-        .chat-input:focus { border-color: #0078d4; }
+        .glass-card h2 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 20px; }
 
-        .data-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid #3e3e42;
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background: #2d2d35;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #4a9eff, #a855f7);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #858585;
+            min-height: 18px;
+            transition: opacity 0.2s;
+        }
+
+        /* ── DASHBOARD ──────────────────────────────── */
+        #dashboard {
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #dash-header {
+            background: #141418;
+            border-bottom: 1px solid #2d2d35;
+            padding: 14px 28px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #252526;
+            flex-shrink: 0;
         }
+        #dash-header h1 { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+        #dash-header .actions { display: flex; gap: 8px; }
 
-        .data-title { font-size: 13px; font-weight: 600; color: #fff; }
-        
-        .scroll-area {
-            overflow-y: auto;
-            flex: 1;
+        .btn {
+            background: #4a9eff; border: none; color: #fff; padding: 7px 16px; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s;
         }
+        .btn:hover { background: #3d8be5; }
+        .btn.outline { background: transparent; border: 1px solid #2d2d35; color: #d4d4d4; }
+        .btn.outline:hover { background: #1a1a1f; }
+        .btn.green { background: #1f7a4f; }
+        .btn.green:hover { background: #25965f; }
+        .btn:disabled { background: #2d2d35; color: #555; cursor: not-allowed; border: none; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
+        .dash-content { flex: 1; padding: 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+
+        /* Overview Card */
+        .overview-card { background: #141418; border: 1px solid #2d2d35; border-radius: 12px; padding: 24px; }
+        .project-name { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .project-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .badge.type { background: rgba(168,85,247,0.15); color: #c084fc; }
+        .badge.fw { background: rgba(74,158,255,0.12); color: #4a9eff; }
+        .badge.lang { background: rgba(81,207,102,0.12); color: #51CF66; }
+        .overview-desc { font-size: 12px; color: #858585; line-height: 1.5; margin-top: 4px; }
+
+        .lang-bar-container { margin-top: 16px; }
+        .lang-bar-label { font-size: 11px; color: #6b6b7b; margin-bottom: 6px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px; }
+        .lang-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #2d2d35; }
+        .lang-bar .segment { height: 100%; transition: width 0.3s ease; }
+        .lang-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+        .lang-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #d4d4d4; }
+        .lang-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 20px; }
+        .stat-box { background: #1a1a1f; border: 1px solid #2d2d35; border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-val { font-size: 22px; font-weight: 700; color: #fff; line-height: 1; }
+        .stat-label { font-size: 10px; color: #6b6b7b; text-transform: uppercase; margin-top: 5px; letter-spacing: 0.3px; }
+
+        /* ── METRIC CARDS GRID ───────────────────────── */
+        .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+        .metric-card {
+            background: #141418;
+            border: 1px solid #2d2d35;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.12s, box-shadow 0.2s;
         }
-        th {
-            text-align: left;
-            padding: 8px 16px;
-            font-weight: 600;
-            font-size: 10px;
-            text-transform: uppercase;
-            color: #858585;
-            border-bottom: 1px solid #3e3e42;
-            position: sticky;
-            top: 0;
-            background: #252526;
-            z-index: 10;
+        .metric-card:hover { border-color: #4a9eff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(74,158,255,0.06); }
+        .metric-card .mc-icon { font-size: 24px; margin-bottom: 10px; }
+        .metric-card .mc-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+        .metric-card .mc-stat { font-size: 12px; color: #4a9eff; font-weight: 600; margin-bottom: 6px; }
+        .metric-card .mc-desc { font-size: 11px; color: #6b6b7b; line-height: 1.4; }
+
+        /* ── DETAIL PANEL ───────────────────────────── */
+        #detail-view { display: none; }
+        #detail-view.active { display: block; }
+        #cards-view.hidden { display: none; }
+
+        .detail-back {
+            display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+            color: #4a9eff; cursor: pointer; margin-bottom: 16px; background: none; border: none;
         }
-        td {
-            padding: 8px 16px;
-            border-bottom: 1px solid #2d2d30;
-            color: #cccccc;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
+        .detail-back:hover { color: #7ebbff; }
+
+        .detail-header { margin-bottom: 16px; }
+        .detail-header h2 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+        .detail-header p { font-size: 12px; color: #858585; line-height: 1.5; max-width: 700px; }
+
+        .detail-insights { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .insight-chip { background: #1a1a1f; border: 1px solid #2d2d35; border-radius: 8px; padding: 10px 16px; text-align: center; }
+        .insight-chip .val { font-size: 18px; font-weight: 700; color: #fff; }
+        .insight-chip .lbl { font-size: 10px; color: #6b6b7b; text-transform: uppercase; margin-top: 3px; }
+
+        .detail-table-wrap {
+            background: #141418; border: 1px solid #2d2d35; border-radius: 10px;
+            overflow: hidden; max-height: 450px; display: flex; flex-direction: column;
         }
+        .scroll-area { overflow-y: auto; flex: 1; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { text-align: left; padding: 8px 14px; font-weight: 600; font-size: 10px; text-transform: uppercase; color: #6b6b7b; border-bottom: 1px solid #2d2d35; position: sticky; top: 0; background: #141418; z-index: 10; }
+        td { padding: 8px 14px; border-bottom: 1px solid #1a1a1f; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
         tr:hover td { background: rgba(255,255,255,0.02); }
 
-        .tag {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
+        .tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
         .tag.hot { background: #63171b; color: #ffb1b1; }
+        .tag.warn { background: #8f4f00; color: #ffd43b; }
+        .tag.info { background: #1a365d; color: #90cdf4; }
         .tag.fn { background: #1a365d; color: #90cdf4; }
-        
-        .empty-state {
-            padding: 40px;
-            text-align: center;
-            color: #858585;
-            font-style: italic;
-            font-size: 12px;
-        }
-        
+        .tag.ok { background: rgba(81,207,102,0.12); color: #51CF66; }
+        .empty-state { padding: 30px; text-align: center; color: #6b6b7b; font-style: italic; font-size: 12px; }
+
+        /* Chat */
+        .chat-panel { background: #141418; border: 1px solid #2d2d35; border-radius: 10px; display: flex; flex-direction: column; max-height: 420px; height: 380px; }
+        .chat-header { padding: 14px 16px; border-bottom: 1px solid #2d2d35; font-size: 13px; font-weight: 600; color: #fff; }
+        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
+        .chat-bubble.ai { background: #1a1a1f; align-self: flex-start; color: #d4d4d4; }
+        .chat-bubble.user { background: #4a9eff; align-self: flex-end; color: #fff; }
+        .chat-disabled { opacity: 0.5; pointer-events: none; }
+        .chat-input { flex: 1; background: #1a1a1f; border: 1px solid #2d2d35; color: #d4d4d4; padding: 10px 12px; border-radius: 8px; font-size: 12px; outline: none; }
+        .chat-input:focus { border-color: #4a9eff; }
     </style>
 </head>
 <body>
 
-<div id="header">
-    <div class="title-group">
-        <h1>⚡ AIL Mission Control</h1>
-        <p>Architectural Intelligence Layer — Active Workspace</p>
+<!-- ═══ LANDING ══════════════════════════════════════ -->
+<div id="landing" class="screen active">
+    <div class="landing-brand">
+        <span class="logo-icon">⚡</span>
+        <h1><span>AIL</span> Mission Control</h1>
+        <p class="tagline">Architectural Intelligence Layer — analyze codebases with AST parsing, git intelligence, knowledge graphs, and AI-powered insights.</p>
     </div>
-    <div class="actions">
-        <button class="btn outline" style="margin-right: 8px;" onclick="purgeCache()">Purge Cache</button>
-        <button class="btn" onclick="runAllPipeline()">Run Full Analysis</button>
+    <div id="landing-status" class="landing-status"></div>
+    <div class="landing-actions">
+        <div class="action-card disabled" id="card-existing" onclick="handleUseExisting()">
+            <div class="card-icon">📂</div>
+            <h3>Use Current Analysis</h3>
+            <p>Load your previous analysis results directly. No scanning — just opens the dashboard with existing .ail data.</p>
+            <div class="card-btn">Open Dashboard</div>
+        </div>
+        <div class="action-card" id="card-fresh" onclick="handleRunFresh()">
+            <div class="card-icon">🚀</div>
+            <h3>Run Fresh Analysis</h3>
+            <p>Purges any existing .ail data and performs a full codebase scan from scratch — files, AST, git history, and knowledge graph.</p>
+            <div class="card-btn">Start Fresh</div>
+        </div>
     </div>
 </div>
 
-<div class="workspace">
-    <!-- LEFT SIDEBAR: Pipeline & Graph Access -->
-    <div class="sidebar">
-
-        <!-- Graph Access Card -->
-        <div class="card summary-card" style="border-color: #1f3a1f;">
-            <div class="card-icon green">🕸️</div>
-            <div class="card-body">
-                <div class="card-title">Knowledge Graph</div>
-                <div class="card-desc">Interactive dependency viz</div>
-            </div>
-            <button class="btn" style="background:#1f7a4f; color:#fff;" id="btn-load-graphs" onclick="handleLoadGraphs()" disabled>Open View</button>
-        </div>
-
-        <!-- Pipeline Execution Card -->
-        <div class="pipeline-list">
-            <div class="card-title" style="margin-bottom: 16px;">Analysis Pipeline</div>
-            
-            <div class="layer-row">
-                <div class="layer-info">
-                    <div class="layer-name">L1: Repository</div>
-                </div>
-                <div class="layer-state" id="state-1">not started</div>
-                <button class="btn outline" id="btn-layer1" onclick="runPipeline(1)">Run</button>
-            </div>
-            
-            <div class="layer-row">
-                <div class="layer-info">
-                    <div class="layer-name">L2: Entities (AST)</div>
-                </div>
-                <div class="layer-state" id="state-2">waiting</div>
-                <button class="btn outline" id="btn-layer2" onclick="runPipeline(2)">Run</button>
-            </div>
-            
-            <div class="layer-row">
-                <div class="layer-info">
-                    <div class="layer-name">L3: Git Intel</div>
-                </div>
-                <div class="layer-state" id="state-3">waiting</div>
-                <button class="btn outline" id="btn-layer3" onclick="runPipeline(3)">Run</button>
-            </div>
-            
-            <div class="layer-row">
-                <div class="layer-info">
-                    <div class="layer-name">L4: Graph Building</div>
-                </div>
-                <div class="layer-state" id="state-4">waiting</div>
-                <button class="btn outline" id="btn-layer4" onclick="runPipeline(4)">Run</button>
-            </div>
-        </div>
-
+<!-- ═══ GLASS PROGRESS OVERLAY ═══════════════════════ -->
+<div id="progress-overlay">
+    <div class="glass-card">
+        <h2>⚡ Analyzing Repository</h2>
+        <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
+        <div class="progress-text" id="prog-text">Preparing...</div>
     </div>
+</div>
 
-    <!-- RIGHT MAIN: Data Grid -->
-    <div class="dashboard">
-
-        <!-- Overview Stats -->
-        <div class="card" style="grid-column: span 2; display: block;">
-            <div class="card-title"><span id="stats-title">Repository Overview</span><span class="status-dot grey" id="stats-dot"></span></div>
-            <div id="overview-stats" class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-                <div class="empty-state" style="grid-column: span 4; padding: 20px;">Run Layer 1 to see stats</div>
+<!-- ═══ DASHBOARD ════════════════════════════════════ -->
+<div id="dashboard" class="screen">
+    <div id="dash-header">
+        <h1>⚡ AIL Mission Control</h1>
+        <div class="actions">
+            <button class="btn outline" onclick="goHome()">← Home</button>
+            <button class="btn outline" onclick="purgeCache()">Purge Cache</button>
+            <button class="btn green" id="btn-load-graphs" onclick="handleLoadGraphs()" disabled>Open Graph View</button>
+        </div>
+    </div>
+    <div class="dash-content">
+        <div id="cards-view">
+            <div class="overview-card" id="overview-card"><div class="empty-state">No data</div></div>
+            <div class="metric-grid" id="metric-grid"></div>
+            <div class="chat-panel">
+                <div class="chat-header">🤖 Architecture GraphRAG Agent</div>
+                <div class="scroll-area" id="chat-history" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
+                    <div class="chat-bubble ai">Hello! I'm your Architectural Intelligence Agent. Ask me anything about the codebase.</div>
+                </div>
+                <div id="chat-controls" style="padding:10px 14px;border-top:1px solid #2d2d35;background:#141418;display:flex;gap:8px;flex-shrink:0;">
+                    <input type="text" id="chat-input" class="chat-input" placeholder="Ask about architecture, risk, specific functions..." onkeypress="if(event.key==='Enter'){event.preventDefault();sendChat();}"/>
+                    <button class="btn" onclick="sendChat()">Send</button>
+                </div>
             </div>
         </div>
-
-        <!-- Complexity Table -->
-        <div class="data-panel">
-            <div class="data-header">
-                <div class="data-title">Cyclomatic Complexity</div>
-            </div>
-            <div class="scroll-area" id="complexity-container">
-                <div class="empty-state">Run Layer 2 for metrics</div>
-            </div>
-        </div>
-
-        <!-- Git Churn Table -->
-        <div class="data-panel">
-            <div class="data-header">
-                <div class="data-title">Highest Churn Files</div>
-            </div>
-            <div class="scroll-area" id="churn-container">
-                <div class="empty-state">Run Layer 3 for git data</div>
-            </div>
-        </div>
-
-        <!-- Risk Hotspots Table -->
-        <div class="data-panel">
-            <div class="data-header">
-                <div class="data-title">Risk Hotspots (RPI)</div>
-            </div>
-            <div class="scroll-area" id="risk-container">
-                <div class="empty-state">Run Layer 4 to calculate risk</div>
-            </div>
-        </div>
-
-        <!-- Blast Radius Table -->
-        <div class="data-panel">
-            <div class="data-header">
-                <div class="data-title">Blast Radius Analysis</div>
-            </div>
-            <div class="scroll-area" id="blast-container">
-                <div class="empty-state">Run Layer 3 for impact data</div>
-            </div>
-        </div>
-
-        <!-- Hidden Coupling Table -->
-        <div class="data-panel">
-            <div class="data-header">
-                <div class="data-title">Hidden Coupling</div>
-            </div>
-            <div class="scroll-area" id="coupling-container">
-                <div class="empty-state">Run Layer 3 for coupling data</div>
-            </div>
-        </div>
-
-        <!-- Entities Table -->
-        <div class="data-panel" style="grid-column: span 2; max-height: 500px;">
-            <div class="data-header">
-                <div class="data-title">Detected Code Entities</div>
-            </div>
-            <div class="scroll-area" id="entities-container">
-                <div class="empty-state">Run Layer 2 for entities</div>
-            </div>
-        </div>
-
-        <!-- Chat Interface -->
-        <div class="data-panel" style="grid-column: span 2; max-height: 500px; height: 380px; display: flex;">
-            <div class="data-header">
-                <div class="data-title">🤖 Architecture GraphRAG Agent</div>
-            </div>
-            <div class="scroll-area" id="chat-history" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-                <div class="chat-bubble ai">Hello! I'm your Architectural Intelligence Agent. Ask me anything about the codebase.</div>
-            </div>
-            <div id="chat-controls" style="padding: 12px 16px; border-top: 1px solid #3e3e42; background: #252526; display: flex; gap: 8px; flex-shrink: 0;">
-                <input type="text" id="chat-input" class="chat-input" placeholder="Ask about architecture, blast radius, specific functions..." onkeypress="handleChatKey(event)"/>
-                <button class="btn" onclick="sendChat()">Send</button>
-            </div>
-        </div>
-
+        <div id="detail-view"></div>
     </div>
 </div>
 
 <script>
     const vscode = acquireVsCodeApi();
     let dashData = {};
-    const pipeState = [null, 'idle', 'locked', 'locked', 'locked'];
+    let ailExists = false;
 
-    function runPipeline(n) {
-        if (pipeState[n] === 'running' || pipeState[n] === 'locked') return;
-        pipeState[n] = 'running';
-        updatePipeRow(n);
-        vscode.postMessage({ command: 'runLayer' + n });
+    const LANG_COLORS = {
+        'TypeScript':'#3178c6','JavaScript':'#f1e05a','Python':'#3572A5','Java':'#b07219',
+        'Go':'#00ADD8','Rust':'#dea584','C++':'#f34b7d','C#':'#178600','Ruby':'#701516',
+        'PHP':'#4F5D95','Swift':'#F05138','Kotlin':'#A97BFF','HTML':'#e34c26','CSS':'#563d7c',
+        'JSON':'#858585','YAML':'#cb171e','Markdown':'#083fa1'
+    };
+
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function fname(p) { return String(p||'').split(/[\\\\/]/).pop() || p; }
+    function safeNum(v) { return (typeof v === 'number' && !isNaN(v) && isFinite(v)) ? v : 0; }
+    function safePercent(v) { var n = safeNum(v); return Math.round(n * 100); }
+
+    /* ── SCREEN SWITCHING ─────────────────────────── */
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+        document.getElementById(id).classList.add('active');
     }
 
-    function runAllPipeline() {
-        for (let i = 1; i <= 4; i++) {
-            if (pipeState[i] !== 'locked') pipeState[i] = 'idle';
-        }
-        runPipeline(1);
-    }
-
-    function handleLoadGraphs() {
-        vscode.postMessage({ command: 'loadGraphs' });
-    }
-
-    function purgeCache() {
-        for (let i = 1; i <= 4; i++) { pipeState[i] = 'idle'; }
-        updatePipeRow(1); updatePipeRow(2); updatePipeRow(3); updatePipeRow(4);
-        vscode.postMessage({ command: 'purgeData' });
-    }
-
-    function updatePipeRow(n) {
-        const stateEl = document.getElementById('state-' + n);
-        const btnEl = document.getElementById('btn-layer' + n);
-        
-        if (pipeState[n] === 'running') {
-            stateEl.textContent = '⏳ running';
-            stateEl.className   = 'layer-state running';
-            btnEl.textContent   = '...';
-            btnEl.className     = 'btn outline';
-            btnEl.disabled      = true;
-        } else if (pipeState[n] === 'complete') {
-            stateEl.textContent = '✓ complete';
-            stateEl.className   = 'layer-state complete';
-            btnEl.textContent   = 'Re-run';
-            btnEl.className     = 'btn outline';
-            btnEl.disabled      = false;
-        } else if (pipeState[n] === 'idle') {
-            stateEl.textContent = 'ready';
-            stateEl.className   = 'layer-state';
-            btnEl.textContent   = 'Run';
-            btnEl.className     = 'btn'; // Highlight next available
-            btnEl.disabled      = false;
+    /* ── LANDING ──────────────────────────────────── */
+    function updateLanding() {
+        var statusEl = document.getElementById('landing-status');
+        var existingCard = document.getElementById('card-existing');
+        if (ailExists) {
+            statusEl.innerHTML = '<div class="status-badge found">✓ Previous analysis found</div><br>Your .ail data is available. Load it or start fresh.';
+            existingCard.classList.remove('disabled');
         } else {
-            stateEl.textContent = 'waiting';
-            stateEl.className   = 'layer-state';
-            btnEl.textContent   = 'Run';
-            btnEl.className     = 'btn outline';
-            btnEl.disabled      = true;
+            statusEl.innerHTML = '<div class="status-badge none">No analysis found</div><br>Run a fresh scan to analyze your codebase.';
+            existingCard.classList.add('disabled');
         }
     }
 
-    // ── DATA RENDERING ────────────────────────────────────
-    function statBox(val, label) {
-        return '<div class="stat-box"><div class="stat-val">' + (val || 0) + '</div><div class="stat-label">' + label + '</div></div>';
+    function handleUseExisting() {
+        if (!ailExists) return;
+        vscode.postMessage({ command: 'useCurrentAnalysis' });
     }
-    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    function renderDashboard() {
-        const l1 = dashData.l1_manifest;
-        const l2 = dashData.l2_manifest;
-        const l2e = dashData.l2_entities;
-        const l2c = dashData.l2_complexity;
-        const l3c = dashData.l3_churn;
-        const l3b = dashData.l3_blast;
-        const l3p = dashData.l3_coupling;
-        const l4 = dashData.l4_manifest;
+    function handleRunFresh() {
+        showOverlay();
+        vscode.postMessage({ command: 'runFreshAnalysis' });
+    }
 
-        // 1. Overview Stats
-        const os = document.getElementById('overview-stats');
-        if (l1) {
-            document.getElementById('stats-dot').className = 'status-dot green';
-            let html = '';
-            html += statBox(l1.metrics?.totalFiles || 0, 'Files');
-            if (l2?.summary) {
-                html += statBox(l2.summary.totalEntities, 'Entities');
-                html += statBox(l2.summary.totalCallEdges, 'Call Edges');
+    function goHome() {
+        showScreen('landing');
+        vscode.postMessage({ command: 'requestData' });
+    }
+
+    function handleLoadGraphs() { vscode.postMessage({ command: 'loadGraphs' }); }
+    function purgeCache() { vscode.postMessage({ command: 'requestPurge' }); }
+
+    /* ── PROGRESS OVERLAY ────────────────────────── */
+    var layerTexts = {
+        0: 'Preparing analysis pipeline...',
+        1: 'Scanning repository — files, languages, frameworks...',
+        2: 'Parsing code structure — AST, entities, imports...',
+        3: 'Mining git history — churn, coupling, blast radius...',
+        4: 'Building knowledge graph — risk scoring, summary...',
+        5: 'Analysis complete!'
+    };
+
+    function showOverlay() {
+        var o = document.getElementById('progress-overlay');
+        o.classList.add('active');
+        document.getElementById('prog-fill').style.width = '0%';
+        document.getElementById('prog-text').textContent = layerTexts[0];
+    }
+
+    function hideOverlay() {
+        document.getElementById('progress-overlay').classList.remove('active');
+    }
+
+    function updateOverlay(layer, status) {
+        var fill = document.getElementById('prog-fill');
+        var text = document.getElementById('prog-text');
+        if (status === 'running') {
+            fill.style.width = ((layer - 1) * 25) + '%';
+            text.textContent = layerTexts[layer] || 'Processing...';
+        } else if (status === 'complete') {
+            fill.style.width = (layer * 25) + '%';
+            if (layer === 4) {
+                text.textContent = layerTexts[5];
             }
-            if (l3c) html += statBox(l3c.hotFiles?.length || 0, 'Hot Files');
-            if (l3b) html += statBox(l3b.avgBlastRadius || 0, 'Avg Blast');
-            if (l3p?.stronglyCoupled) html += statBox(l3p.stronglyCoupled.length, 'Couplings');
-
-            os.style.gridTemplateColumns = 'repeat(6, 1fr)';
-            os.innerHTML = html;
-        } else {
-            document.getElementById('stats-dot').className = 'status-dot grey';
-            os.style.gridTemplateColumns = 'repeat(4, 1fr)';
-            os.innerHTML = '<div class="empty-state" style="grid-column: span 4; padding: 20px;">Run Layer 1 analysis for project stats</div>';
-        }
-
-        // 2. Graph Button unlock
-        document.getElementById('btn-load-graphs').disabled = !l4;
-
-        // 3. Complexity Table
-        const cxContainer = document.getElementById('complexity-container');
-        if (l2c && l2c.functions?.length) {
-            let cxHtml = '<table><thead><tr><th>Function</th><th>File</th><th>Cyclomatic</th></tr></thead><tbody>';
-            l2c.functions.slice(0, 15).forEach(f => {
-                cxHtml += '<tr><td><strong>' + esc(f.entityName) + '</strong></td><td>' + esc(f.file.split(/[\\\\/]/).pop()) + '</td><td style="color:' + (f.cyclomatic > 10 ? '#FFD43B' : '#51CF66') + ';">' + f.cyclomatic + '</td></tr>';
-            });
-            cxHtml += '</tbody></table>';
-            cxContainer.innerHTML = cxHtml;
-        }
-
-        // 4. Git Churn Table
-        const chContainer = document.getElementById('churn-container');
-        if (l3c && l3c.files?.length) {
-            let chHtml = '<table><thead><tr><th>File</th><th>Commits</th><th>Status</th></tr></thead><tbody>';
-            l3c.files.slice(0, 15).forEach(f => {
-                const tag = f.isHot ? '<span class="tag hot">HOT</span>' : '';
-                chHtml += '<tr><td>' + esc(f.file.split(/[\\\\/]/).pop()) + '</td><td>' + f.commits + '</td><td>' + tag + '</td></tr>';
-            });
-            chHtml += '</tbody></table>';
-            chContainer.innerHTML = chHtml;
-        }
-
-        // 5. Blast Radius Table
-        const blContainer = document.getElementById('blast-container');
-        if (l3b && l3b.highImpactCommits?.length) {
-            let blHtml = '<table><thead><tr><th>Commit</th><th>Author</th><th>Radius</th><th>Details</th></tr></thead><tbody>';
-            l3b.highImpactCommits.slice(0, 15).forEach(c => {
-                const radius = c.blastRadius;
-                const tag = radius > 15 ? '<span class="tag hot">HIGH</span>' : '';
-                blHtml += '<tr><td><span style="font-family:monospace; font-size:10px;">' + esc(c.hash.substring(0, 7)) + '</span></td><td>' + esc(c.author) + '</td><td style="color:' + (radius > 15 ? '#FFD43B' : '#51CF66') + ';">' + radius + ' ' + tag + '</td><td>' + esc(c.message) + '</td></tr>';
-            });
-            blHtml += '</tbody></table>';
-            blContainer.innerHTML = blHtml;
-        }
-
-        // 6. Hidden Coupling Table
-        const coContainer = document.getElementById('coupling-container');
-        if (l3p && l3p.pairs?.length) {
-            let coHtml = '<table><thead><tr><th>File A</th><th>File B</th><th>Coupling</th></tr></thead><tbody>';
-            l3p.pairs.slice(0, 15).forEach(p => {
-                const perc = Math.round(p.couplingStrength * 100);
-                const tag = p.couplingStrength > 0.6 ? '<span class="tag hot">STRONG</span>' : '';
-                coHtml += '<tr><td>' + esc(p.fileA.split(/[\\\\/]/).pop()) + '</td><td>' + esc(p.fileB.split(/[\\\\/]/).pop()) + '</td><td style="color:' + (p.couplingStrength > 0.6 ? '#FFD43B' : '#51CF66') + ';">' + perc + '% ' + tag + '</td></tr>';
-            });
-            coHtml += '</tbody></table>';
-            coContainer.innerHTML = coHtml;
-        }
-
-        // 7. Risk Hotspots Table
-        const rkContainer = document.getElementById('risk-container');
-        const l4s = dashData.l4_summary;
-        if (l4s && l4s.riskHotspots?.length) {
-            let rkHtml = '<table><thead><tr><th>Entity</th><th>File</th><th>Risk Score</th></tr></thead><tbody>';
-            l4s.riskHotspots.slice(0, 15).forEach(r => {
-                const score = r.riskScore.toFixed(2);
-                let tag = '';
-                let color = '#51CF66'; // low
-                if (r.level === 'critical') { tag = '<span class="tag hot">CRITICAL</span>'; color = '#ff4a4a'; }
-                else if (r.level === 'high') { tag = '<span class="tag hot" style="background:#8f4f00; color:#ffd43b;">HIGH</span>'; color = '#FFD43B'; }
-                else if (r.level === 'medium') { tag = '<span class="tag" style="background:#1a365d; color:#90cdf4;">MEDIUM</span>'; color = '#90cdf4'; }
-                rkHtml += '<tr><td><strong>' + esc(r.name) + '</strong></td><td>' + esc(r.file.split(/[\\\\/]/).pop()) + '</td><td style="color:' + color + ';">' + score + ' ' + tag + '</td></tr>';
-            });
-            rkHtml += '</tbody></table>';
-            rkContainer.innerHTML = rkHtml;
-        }
-
-        // 8. Entities Table
-        const etContainer = document.getElementById('entities-container');
-        if (l2e && l2e.entities?.length) {
-            let etHtml = '<table><thead><tr><th>Entity Name</th><th>Type</th><th>File</th><th>Loc</th></tr></thead><tbody>';
-            l2e.entities.slice(0, 30).forEach(e => {
-                etHtml += '<tr><td><strong>' + esc(e.name) + '</strong></td><td><span class="tag fn">' + e.type + '</span></td><td>' + esc(e.file.split(/[\\\\/]/).pop()) + '</td><td>L' + e.startLine + '</td></tr>';
-            });
-            etHtml += '</tbody></table>';
-            etContainer.innerHTML = etHtml;
+        } else if (status === 'error') {
+            text.textContent = 'Error at step ' + layer + '. Check console.';
         }
     }
 
-    // ── CHAT LOGIC ────────────────────────────────────────
-    let chatContextHistory = [];
-    function handleChatKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }
-    
+    /* ── OVERVIEW CARD ───────────────────────────── */
+    function renderOverview() {
+        var card = document.getElementById('overview-card');
+        var l1 = dashData.l1_manifest;
+        if (!l1) { card.innerHTML = '<div class="empty-state">No data</div>'; return; }
+
+        var projectName = (l1.workspacePath || '').split(/[\\\\/]/).pop() || 'Project';
+        var execModel = l1.executionModel || {};
+        var frameworks = (l1.frameworks && l1.frameworks.frameworks) || [];
+        var langs = (l1.languages && l1.languages.languages) || [];
+        var metrics = l1.metrics || {};
+        var deps = l1.dependencies || {};
+        var depDepth = l1.dependencyDepth || {};
+        var directDeps = (deps.direct || []).length;
+        var transitiveDeps = (deps.transitive || []).length;
+        var totalDeps = directDeps + transitiveDeps;
+
+        var h = '';
+        h += '<div class="project-name">' + esc(projectName) + '</div>';
+        h += '<div class="project-badges">';
+        if (execModel.model) h += '<span class="badge type">' + esc(execModel.model) + '</span>';
+        var conf = safePercent(execModel.confidence);
+        if (conf > 0) h += '<span class="badge type" style="background:rgba(255,212,59,0.1);color:#ffd43b;">' + conf + '% confidence</span>';
+        for (var i = 0; i < frameworks.length; i++) { h += '<span class="badge fw">' + esc(frameworks[i].name) + '</span>'; }
+        if (l1.primaryLanguage) h += '<span class="badge lang">' + esc(l1.primaryLanguage) + '</span>';
+        h += '</div>';
+        if (execModel.reasoning) h += '<div class="overview-desc">' + esc(execModel.reasoning) + '</div>';
+
+        if (langs.length > 0) {
+            h += '<div class="lang-bar-container"><div class="lang-bar-label">Language Distribution</div><div class="lang-bar">';
+            for (var j = 0; j < langs.length; j++) {
+                var color = LANG_COLORS[langs[j].name] || '#6b6b7b';
+                var pct = safeNum(langs[j].percentage);
+                h += '<div class="segment" style="width:' + pct.toFixed(1) + '%;background:' + color + ';" title="' + esc(langs[j].name) + ' ' + pct.toFixed(1) + '%"></div>';
+            }
+            h += '</div><div class="lang-legend">';
+            for (var k = 0; k < langs.length; k++) {
+                var c2 = LANG_COLORS[langs[k].name] || '#6b6b7b';
+                h += '<div class="lang-legend-item"><div class="lang-dot" style="background:' + c2 + ';"></div>' + esc(langs[k].name) + ' <span style="color:#6b6b7b;">' + safeNum(langs[k].percentage).toFixed(1) + '%</span></div>';
+            }
+            h += '</div></div>';
+        }
+
+        h += '<div class="stats-row">';
+        h += statBox(safeNum(metrics.totalFiles), 'Source Files');
+        h += statBox(safeNum(metrics.totalLines).toLocaleString(), 'Lines of Code');
+        h += statBox(formatSize(safeNum(metrics.totalSizeKB)), 'Total Size');
+        h += statBox(safeNum(metrics.avgLinesPerFile), 'Avg Lines/File');
+        if (totalDeps > 0) h += statBox(totalDeps, 'Dependencies');
+        if (depDepth.riskLevel) {
+            var dc = depDepth.riskLevel === 'low' ? '#51CF66' : depDepth.riskLevel === 'medium' ? '#FFD43B' : '#ff4a4a';
+            h += '<div class="stat-box"><div class="stat-val" style="color:' + dc + ';">' + esc(depDepth.riskLevel) + '</div><div class="stat-label">Dep. Risk</div></div>';
+        }
+        var epCount = (l1.entryPoints && l1.entryPoints.entryPoints) ? l1.entryPoints.entryPoints.length : 0;
+        if (epCount > 0) h += statBox(epCount, 'Entry Points');
+        h += '</div>';
+        card.innerHTML = h;
+    }
+
+    function statBox(v, l) { return '<div class="stat-box"><div class="stat-val">' + v + '</div><div class="stat-label">' + l + '</div></div>'; }
+    function formatSize(kb) { return kb > 1024 ? (kb/1024).toFixed(1)+' MB' : Math.round(kb)+' KB'; }
+
+    /* ── METRIC CARDS ────────────────────────────── */
+    var metricDefs = [
+        { id: 'risk',       icon: '🛡️', title: 'Risk Hotspots',       desc: 'Identifies bug-prone code by combining complexity, high churn, and tight coupling into a single RPI score.' },
+        { id: 'complexity', icon: '🧠', title: 'Code Complexity',     desc: 'Highlights functions with excessive branching (Cyclomatic > 10) requiring refactoring for maintainability.' },
+        { id: 'churn',      icon: '⏱️', title: 'File Churn',          desc: 'Reveals structurally volatile files or stale code blocks to track accumulating technical debt.' },
+        { id: 'blast',      icon: '📡', title: 'Blast Radius',        desc: 'Calculates transitive impact across imports, spotting modules that break distant systems when modified.' },
+        { id: 'coupling',   icon: '🪢', title: 'Hidden Coupling',     desc: 'Detects file pairs that frequently change together in Git to expose implicit, undocumented dependencies.' },
+        { id: 'entities',   icon: '🏗️', title: 'Code Entities',       desc: 'Catalogs all parsed structural boundaries (functions, classes) to fuel the semantic knowledge graph.' }
+    ];
+
+    function renderMetricCards() {
+        var grid = document.getElementById('metric-grid');
+        var h = '';
+        for (var i = 0; i < metricDefs.length; i++) {
+            var m = metricDefs[i];
+            var stat = getMetricStat(m.id);
+            h += '<div class="metric-card" onclick="openDetail(\\'' + m.id + '\\')">';
+            h += '<div class="mc-icon">' + m.icon + '</div>';
+            h += '<div class="mc-title">' + m.title + '</div>';
+            h += '<div class="mc-stat">' + stat + '</div>';
+            h += '<div class="mc-desc">' + m.desc + '</div>';
+            h += '</div>';
+        }
+        grid.innerHTML = h;
+    }
+
+    function getMetricStat(id) {
+        var l2c = dashData.l2_complexity;
+        var l3c = dashData.l3_churn;
+        var l3b = dashData.l3_blast;
+        var l3p = dashData.l3_coupling;
+        var l4s = dashData.l4_summary;
+        var l2e = dashData.l2_entities;
+
+        if (id === 'risk') {
+            if (!l4s || !l4s.riskHotspots) return 'No data';
+            var crit = 0, high = 0;
+            for (var i = 0; i < l4s.riskHotspots.length; i++) {
+                if (l4s.riskHotspots[i].level === 'critical') crit++;
+                if (l4s.riskHotspots[i].level === 'high') high++;
+            }
+            return crit + ' critical, ' + high + ' high risk';
+        }
+        if (id === 'complexity') {
+            if (!l2c || !l2c.functions) return 'No data';
+            var complex = 0;
+            for (var j = 0; j < l2c.functions.length; j++) { if (l2c.functions[j].cyclomatic > 10) complex++; }
+            return complex + ' complex functions (>10)';
+        }
+        if (id === 'churn') {
+            if (!l3c) return 'No data';
+            var hot = (l3c.hotFiles || []).length;
+            var stale = (l3c.staleFiles || []).length;
+            return hot + ' hot, ' + stale + ' stale files';
+        }
+        if (id === 'blast') {
+            if (!l3b) return 'No data';
+            return 'Avg radius: ' + safeNum(l3b.avgBlastRadius).toFixed(1) + ' files';
+        }
+        if (id === 'coupling') {
+            if (!l3p || !l3p.stronglyCoupled) return 'No data';
+            return l3p.stronglyCoupled.length + ' strongly coupled pairs';
+        }
+        if (id === 'entities') {
+            if (!l2e || !l2e.entities) return 'No data';
+            var fns = 0, cls = 0;
+            for (var k = 0; k < l2e.entities.length; k++) {
+                if (l2e.entities[k].type === 'function') fns++;
+                if (l2e.entities[k].type === 'class') cls++;
+            }
+            return fns + ' functions, ' + cls + ' classes';
+        }
+        return 'No data';
+    }
+
+    /* ── DETAIL PANEL ────────────────────────────── */
+    function openDetail(id) {
+        document.getElementById('cards-view').classList.add('hidden');
+        var dv = document.getElementById('detail-view');
+        dv.classList.add('active');
+        dv.innerHTML = buildDetail(id);
+        dv.scrollTop = 0;
+    }
+
+    function closeDetail() {
+        document.getElementById('detail-view').classList.remove('active');
+        document.getElementById('detail-view').innerHTML = '';
+        document.getElementById('cards-view').classList.remove('hidden');
+    }
+
+    function buildDetail(id) {
+        var h = '<button class="detail-back" onclick="closeDetail()">← Back to Dashboard</button>';
+
+        if (id === 'risk') {
+            var l4s = dashData.l4_summary;
+            var spots = (l4s && l4s.riskHotspots) || [];
+            h += '<div class="detail-header"><h2>🔴 Risk Hotspots</h2>';
+            h += '<p>The Risk Priority Index (RPI) combines cyclomatic complexity (40%), file churn (40%), and coupling degree (20%) into a single score. Higher scores indicate code that is complex, frequently changing, and tightly coupled — making it the most likely source of bugs.</p></div>';
+            var crit=0, hi=0, med=0;
+            for (var i=0;i<spots.length;i++) { if (spots[i].level==='critical') crit++; else if (spots[i].level==='high') hi++; else if (spots[i].level==='medium') med++; }
+            h += '<div class="detail-insights">';
+            h += insightChip(crit, 'Critical', '#ff4a4a');
+            h += insightChip(hi, 'High', '#FFD43B');
+            h += insightChip(med, 'Medium', '#90cdf4');
+            h += insightChip(spots.length, 'Total Scored');
+            h += '</div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Entity</th><th>File</th><th>RPI Score</th><th>Level</th></tr></thead><tbody>';
+            for (var j=0;j<spots.length;j++) {
+                var r = spots[j];
+                var sc = safeNum(r.riskScore).toFixed(2);
+                var tag = r.level==='critical' ? '<span class="tag hot">CRITICAL</span>' : r.level==='high' ? '<span class="tag warn">HIGH</span>' : r.level==='medium' ? '<span class="tag info">MEDIUM</span>' : '<span class="tag ok">LOW</span>';
+                h += '<tr><td><strong>'+esc(r.name)+'</strong></td><td>'+esc(fname(r.file))+'</td><td>'+sc+'</td><td>'+tag+'</td></tr>';
+            }
+            h += '</tbody></table></div></div>';
+        }
+
+        else if (id === 'complexity') {
+            var l2c = dashData.l2_complexity;
+            var fns = (l2c && l2c.functions) || [];
+            h += '<div class="detail-header"><h2>📊 Cyclomatic Complexity</h2>';
+            h += '<p>Cyclomatic complexity measures the number of independent paths through a function. Values above 10 indicate functions that are harder to test and maintain. Each branch (if, for, while, switch case, catch, ternary, &&, ||) adds one to the count.</p></div>';
+            var complex = 0;
+            for (var a=0;a<fns.length;a++) { if (fns[a].cyclomatic > 10) complex++; }
+            h += '<div class="detail-insights">';
+            h += insightChip(complex, 'Complex (>10)', '#FFD43B');
+            h += insightChip(fns.length, 'Total Analyzed');
+            if (fns.length > 0) h += insightChip(fns[0].cyclomatic, 'Highest');
+            h += '</div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Function</th><th>File</th><th>Cyclomatic</th><th>Nesting</th></tr></thead><tbody>';
+            for (var b=0;b<fns.length;b++) {
+                var f = fns[b];
+                var color = f.cyclomatic > 10 ? '#FFD43B' : '#51CF66';
+                h += '<tr><td><strong>'+esc(f.entityName)+'</strong></td><td>'+esc(fname(f.file))+'</td><td style="color:'+color+';">'+f.cyclomatic+'</td><td>'+safeNum(f.nestingDepth)+'</td></tr>';
+            }
+            h += '</tbody></table></div></div>';
+        }
+
+        else if (id === 'churn') {
+            var l3c = dashData.l3_churn;
+            var files = (l3c && l3c.files) || [];
+            var hotCount = (l3c && l3c.hotFiles) ? l3c.hotFiles.length : 0;
+            var staleCount = (l3c && l3c.staleFiles) ? l3c.staleFiles.length : 0;
+            h += '<div class="detail-header"><h2>🔥 File Churn Analysis</h2>';
+            h += '<p>File churn measures how frequently files change. "Hot" files are in the top 10% by change frequency — they are evolving rapidly and may need extra test coverage. "Stale" files have not been touched in 6+ months and may contain outdated code.</p></div>';
+            h += '<div class="detail-insights">';
+            h += insightChip(hotCount, 'Hot Files', '#ff4a4a');
+            h += insightChip(staleCount, 'Stale Files', '#858585');
+            h += insightChip(files.length, 'Total Tracked');
+            h += '</div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>File</th><th>Commits</th><th>Insertions</th><th>Deletions</th><th>Status</th></tr></thead><tbody>';
+            for (var c=0;c<files.length;c++) {
+                var fl = files[c];
+                var tag2 = fl.isHot ? '<span class="tag hot">HOT</span>' : fl.isStale ? '<span class="tag info">STALE</span>' : '';
+                h += '<tr><td>'+esc(fname(fl.file))+'</td><td>'+safeNum(fl.commits)+'</td><td style="color:#51CF66;">+'+safeNum(fl.insertions)+'</td><td style="color:#ff4a4a;">-'+safeNum(fl.deletions)+'</td><td>'+tag2+'</td></tr>';
+            }
+            h += '</tbody></table></div></div>';
+        }
+
+        else if (id === 'blast') {
+            var l3b = dashData.l3_blast;
+            var commits = (l3b && l3b.highImpactCommits) || [];
+            h += '<div class="detail-header"><h2>💥 Blast Radius Analysis</h2>';
+            h += '<p>Blast radius measures how many files are transitively affected when a commit changes a file. It follows the import graph — if file A imports B which imports C, changing C has a blast radius covering A and B. High blast radius commits are risky because a single bug can propagate widely.</p></div>';
+            h += '<div class="detail-insights">';
+            h += insightChip(safeNum(l3b && l3b.avgBlastRadius).toFixed(1), 'Avg Radius');
+            h += insightChip(commits.length, 'High Impact');
+            if (commits.length > 0) h += insightChip(safeNum(commits[0].blastRadius), 'Max Radius');
+            h += '</div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Commit</th><th>Author</th><th>Radius</th><th>Message</th></tr></thead><tbody>';
+            for (var d=0;d<commits.length;d++) {
+                var cm = commits[d];
+                var rad = safeNum(cm.blastRadius);
+                var tag3 = rad > 15 ? '<span class="tag hot">HIGH</span>' : '';
+                h += '<tr><td style="font-family:monospace;font-size:10px;">'+esc(cm.hash.substring(0,7))+'</td><td>'+esc(cm.author)+'</td><td style="color:'+(rad>15?'#FFD43B':'#51CF66')+';">'+rad+' '+tag3+'</td><td>'+esc(cm.message)+'</td></tr>';
+            }
+            h += '</tbody></table></div></div>';
+        }
+
+        else if (id === 'coupling') {
+            var l3p = dashData.l3_coupling;
+            var pairs = (l3p && l3p.pairs) || [];
+            var strong = (l3p && l3p.stronglyCoupled) || [];
+            h += '<div class="detail-header"><h2>🔗 Hidden Coupling Analysis</h2>';
+            h += '<p>Co-change coupling detects files that frequently change together in the same commits — even when they have no direct import relationship. Strong coupling (>60%) may indicate hidden dependencies, shared assumptions, or code that should be refactored into a single module.</p></div>';
+            h += '<div class="detail-insights">';
+            h += insightChip(strong.length, 'Strong (>60%)', '#ff4a4a');
+            h += insightChip(pairs.length, 'Total Pairs');
+            h += '</div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>File A</th><th>File B</th><th>Co-Changes</th><th>Coupling</th></tr></thead><tbody>';
+            for (var e=0;e<pairs.length;e++) {
+                var p = pairs[e];
+                var pct = Math.round(safeNum(p.couplingStrength)*100);
+                var tag4 = pct > 60 ? '<span class="tag hot">STRONG</span>' : pct > 30 ? '<span class="tag warn">MODERATE</span>' : '';
+                h += '<tr><td>'+esc(fname(p.fileA))+'</td><td>'+esc(fname(p.fileB))+'</td><td>'+safeNum(p.coChanges)+'</td><td style="color:'+(pct>60?'#FFD43B':'#51CF66')+';">'+pct+'% '+tag4+'</td></tr>';
+            }
+            h += '</tbody></table></div></div>';
+        }
+
+        else if (id === 'entities') {
+            var l2e = dashData.l2_entities;
+            var entities = (l2e && l2e.entities) || [];
+            var fns2=0, cls2=0, iface=0, methods=0;
+            for (var f2=0;f2<entities.length;f2++) {
+                var t = entities[f2].type;
+                if (t==='function') fns2++; else if (t==='class') cls2++; else if (t==='interface') iface++; else if (t==='method') methods++;
+            }
+            h += '<div class="detail-header"><h2>📦 Code Entities</h2>';
+            h += '<p>All code entities detected through AST parsing — functions, classes, interfaces, methods, type aliases, and more. These form the nodes of the knowledge graph.</p></div>';
+            h += '<div class="detail-insights">';
+            h += insightChip(fns2, 'Functions');
+            h += insightChip(cls2, 'Classes');
+            h += insightChip(iface, 'Interfaces');
+            h += insightChip(methods, 'Methods');
+            h += insightChip(entities.length, 'Total');
+            h += '</div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Name</th><th>Type</th><th>File</th><th>Line</th><th>Exported</th></tr></thead><tbody>';
+            for (var g=0;g<entities.length;g++) {
+                var en = entities[g];
+                h += '<tr><td><strong>'+esc(en.name)+'</strong></td><td><span class="tag fn">'+esc(en.type)+'</span></td><td>'+esc(fname(en.file))+'</td><td>L'+safeNum(en.startLine)+'</td><td>'+(en.exported?'✓':'')+'</td></tr>';
+            }
+            h += '</tbody></table></div></div>';
+        }
+
+        return h;
+    }
+
+    function insightChip(val, label, color) {
+        var style = color ? ' style="color:'+color+';"' : '';
+        return '<div class="insight-chip"><div class="val"'+style+'>'+val+'</div><div class="lbl">'+label+'</div></div>';
+    }
+
+    /* ── RENDER DASHBOARD ────────────────────────── */
+    function renderDashboard() {
+        renderOverview();
+        renderMetricCards();
+        var l4 = dashData.l4_manifest;
+        document.getElementById('btn-load-graphs').disabled = !l4;
+    }
+
+    /* ── CHAT ─────────────────────────────────────── */
+    var chatHistory = [];
     function sendChat() {
-        const input = document.getElementById('chat-input');
-        const query = input.value.trim();
-        if (!query) return;
-        appendChat('user', query);
+        var input = document.getElementById('chat-input');
+        var q = input.value.trim();
+        if (!q) return;
+        appendChat('user', q);
         input.value = '';
         document.getElementById('chat-controls').classList.add('chat-disabled');
-        vscode.postMessage({ command: 'askGraphRAG', query: query, history: chatContextHistory });
-        chatContextHistory.push({ role: 'user', content: query });
+        vscode.postMessage({ command: 'askGraphRAG', query: q, history: chatHistory });
+        chatHistory.push({ role: 'user', content: q });
     }
-
-    let currentAiBubble = null;
+    var currentAiBubble = null;
     function appendChat(role, text) {
-        const history = document.getElementById('chat-history');
-        const bubble = document.createElement('div');
-        bubble.className = 'chat-bubble ' + role;
-        bubble.textContent = text;
-        history.appendChild(bubble);
-        history.scrollTop = history.scrollHeight;
-        if (role === 'ai') currentAiBubble = bubble;
-        return bubble;
+        var hist = document.getElementById('chat-history');
+        var b = document.createElement('div');
+        b.className = 'chat-bubble ' + role;
+        b.textContent = text;
+        hist.appendChild(b);
+        hist.scrollTop = hist.scrollHeight;
+        if (role === 'ai') currentAiBubble = b;
     }
 
-    // ── MESSAGES FROM EXTENSION ──────────────────────────
-    window.addEventListener('message', e => {
-        const msg = e.data;
+    /* ── MESSAGE HANDLER ─────────────────────────── */
+    window.addEventListener('message', function(e) {
+        var msg = e.data;
+
+        if (msg.command === 'dashboardData') {
+            dashData = msg.data || {};
+            ailExists = !!dashData.ailExists;
+            /* On initial load — just update landing buttons, do NOT auto-navigate */
+            updateLanding();
+        }
+
+        if (msg.command === 'showDashboard') {
+            hideOverlay();
+            showScreen('dashboard');
+            renderDashboard();
+        }
+
+        if (msg.command === 'analysisStarted') {
+            showOverlay();
+        }
+
+        if (msg.command === 'analysisCancelled') {
+            hideOverlay();
+            showScreen('landing');
+            vscode.postMessage({ command: 'requestData' });
+        }
+
+        if (msg.command === 'layerStatus') {
+            updateOverlay(msg.layer, msg.status);
+        }
+
+        if (msg.command === 'analysisComplete') {
+            /* Data will arrive via dashboardData + showDashboard right after this */
+        }
+
         if (msg.command === 'chatResponse') {
             if (msg.text === '...') {
-                appendChat('ai', 'Thinking (running GraphRAG query)...');
+                appendChat('ai', 'Thinking...');
             } else {
                 if (currentAiBubble) currentAiBubble.textContent = msg.text;
-                chatContextHistory.push({ role: 'assistant', content: msg.text });
+                chatHistory.push({ role: 'assistant', content: msg.text });
                 document.getElementById('chat-controls').classList.remove('chat-disabled');
             }
         }
-        if (msg.command === 'layerStatus') {
-            if (msg.status === 'complete') {
-                pipeState[msg.layer] = 'complete';
-                if (msg.layer < 4) pipeState[msg.layer + 1] = 'idle';
-                setTimeout(() => vscode.postMessage({ command: 'requestData' }), 100);
-            } else if (msg.status === 'running') {
-                pipeState[msg.layer] = 'running';
-            }
-            updatePipeRow(1); updatePipeRow(2); updatePipeRow(3); updatePipeRow(4);
-        }
-        
-        if (msg.command === 'dashboardData') {
-            dashData = msg.data || {};
-            const ls = dashData.layerStatus;
-            if (ls) {
-                if (ls.l1) pipeState[1] = 'complete';
-                if (ls.l2) pipeState[2] = 'complete';
-                if (ls.l3) pipeState[3] = 'complete';
-                if (ls.l4) pipeState[4] = 'complete';
-                for (let i = 1; i <= 4; i++) {
-                    if (pipeState[i] !== 'complete' && (i === 1 || pipeState[i-1] === 'complete')) {
-                        pipeState[i] = 'idle';
-                    }
-                }
-                updatePipeRow(1); updatePipeRow(2); updatePipeRow(3); updatePipeRow(4);
-            }
-            renderDashboard();
-        }
     });
 
-    // Request initial data
-    setTimeout(() => vscode.postMessage({ command: 'requestData' }), 100);
+    /* Initial data request — only to check if .ail exists */
+    setTimeout(function() { vscode.postMessage({ command: 'requestData' }); }, 100);
 </script>
 </body>
 </html>`;

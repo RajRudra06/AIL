@@ -318,11 +318,36 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
             }
         }
 
-        // --- 5. Always include architecture summary as baseline context ---
+        // --- 5. Always include architecture and project metadata as baseline context ---
+        const layer1File = path.join(workspacePath, '.ail', 'layer1', 'meta-data.json');
+        if (fs.existsSync(layer1File)) {
+            const l1Data = JSON.parse(fs.readFileSync(layer1File, 'utf8'));
+            contextText += '\n--- PROJECT PROFILE (LAYER 1) ---\n';
+            contextText += `Total Source Files: ${l1Data.metrics?.totalFiles || 0}\n`;
+            contextText += `Total Lines of Code: ${l1Data.metrics?.totalLines?.toLocaleString() || 0}\n`;
+            contextText += `Primary Language: ${l1Data.languages?.primary || 'Unknown'}\n`;
+            if (l1Data.frameworks?.frameworks?.length > 0) {
+                contextText += `Frameworks/Tech Stack: ${l1Data.frameworks.frameworks.map((f:any) => f.name).join(', ')}\n`;
+            }
+            if (l1Data.entryPoints?.primaryEntry) {
+                contextText += `Main Entry Point: ${l1Data.entryPoints.primaryEntry}\n`;
+            }
+        }
+
+        const layer2File = path.join(workspacePath, '.ail', 'layer2', 'meta-data.json');
+        if (fs.existsSync(layer2File)) {
+            const l2Data = JSON.parse(fs.readFileSync(layer2File, 'utf8'));
+            contextText += '\n--- CODEBASE STRUCTURE (LAYER 2) ---\n';
+            contextText += `Total Structural Entities (Functions/Classes/Methods): ${l2Data.summary?.totalEntities || 0}\n`;
+            if (l2Data.summary?.complexFunctionCount > 0) {
+                contextText += `Highly Complex Functions Needing Refactoring: ${l2Data.summary.complexFunctionCount}\n`;
+            }
+        }
+
         if (fs.existsSync(summaryFile)) {
             const summaryData = JSON.parse(fs.readFileSync(summaryFile, 'utf8'));
-            contextText += '\n--- ARCHITECTURE OVERVIEW ---\n';
-            contextText += summaryData.overview + '\n';
+            contextText += '\n--- ARCHITECTURE OVERVIEW (LAYER 4) ---\n';
+            contextText += (summaryData.overview || 'No high-level overview generated.') + '\n';
             if (summaryData.riskHotspots && summaryData.riskHotspots.length > 0) {
                 contextText += '\nTop Risk Hotspots:\n';
                 for (const h of summaryData.riskHotspots.slice(0, 5)) {
@@ -402,31 +427,35 @@ async function askGemini(query: string, systemPrompt: string, history: ChatMessa
     const apiKey = config.get<string>('geminiApiKey');
     if (!apiKey) { return "Please configure 'ail.geminiApiKey' in settings."; }
 
-    const model = config.get<string>('geminiModel') || 'gemini-2.0-flash';
-    const apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+    // Use Groq's OpenAI-compatible endpoint with Llama 3
+    const model = 'llama-3.3-70b-versatile';
+    const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
 
-    const contents = history.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-    }));
-
-    const payload = {
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [...contents, { role: 'user', parts: [{ text: query }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
-    };
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: query }
+    ];
 
     const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+            model: model,
+            messages: messages,
+            temperature: 0.2,
+            max_tokens: 6000
+        })
     });
 
     if (!response.ok) {
         const err = await response.json() as any;
-        return 'Gemini API Error: ' + (err.error?.message || response.statusText);
+        return 'Groq API Error: ' + (err.error?.message || response.statusText);
     }
 
     const data = await response.json() as any;
-    return data.candidates[0].content.parts[0].text;
+    return data.choices[0].message.content;
 }

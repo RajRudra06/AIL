@@ -18,8 +18,8 @@ export function runCheckpoint11(manifest: Layer1Manifest): void {  // ← cp9 �
         `Entry point: ${manifest.entryPoints.primaryEntry ?? 'not found'}`,
         `Total LOC: ${manifest.metrics.totalLines.toLocaleString()}`
     ].join(' · ');
-
-    vscode.window.showInformationMessage(summary);
+    // Console log only to prevent noisy UI toasts
+    // vscode.window.showInformationMessage(summary);
 
     console.log('AIL CP11 |', summary);  // ← CP8 → CP11
 }

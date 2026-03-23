@@ -13,7 +13,7 @@ export function runCheckpoint4(manifest: Layer4Manifest): void {
         `${s.entityCount} entities`,
         `${s.languages.join(', ')}`,
     ].join(' · ');
-
-    vscode.window.showInformationMessage(msg);
+    // Console log only
+    // vscode.window.showInformationMessage(msg);
     console.log('AIL L4-CP4 |', msg);
 }

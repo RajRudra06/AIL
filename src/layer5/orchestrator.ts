@@ -30,8 +30,8 @@ export async function runLayer5(): Promise<void> {
     const indexDir = path.join(layer5Dir, 'index');
     if (!fs.existsSync(layer5Dir)) { fs.mkdirSync(layer5Dir, { recursive: true }); }
     if (!fs.existsSync(indexDir)) { fs.mkdirSync(indexDir, { recursive: true }); }
-
-    vscode.window.showInformationMessage('AIL Layer 5: Starting Node Embedding...');
+    // Quiet log
+    // vscode.window.showInformationMessage('AIL Layer 5: Starting Node Embedding...');
 
     // Run checkpoints (Async because API calls are involved)
     try {

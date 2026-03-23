@@ -12,7 +12,8 @@ import { runCheckpoint7 } from './checkpoints/cp5_notify';
 /**
  * Run Layer 3 — Git Intelligence pipeline.
  * Requires Layer 2 to have completed.
- */
+ 
+*/
 export function runLayer3(): void {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {

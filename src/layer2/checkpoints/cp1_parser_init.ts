@@ -159,10 +159,10 @@ export async function runCheckpoint1(
     const debugPath = path.join(analysisDir, '_debug.json');
     fs.writeFileSync(debugPath, JSON.stringify(diag, null, 2));
 
-    // Show diagnostic notification
-    vscode.window.showWarningMessage(
-        `AIL CP1 Init: ${sourceFiles.length} files detected, ${loadedLanguages.size} grammars loaded`
-    );
+    // Show diagnostic notification in console only
+    // vscode.window.showWarningMessage(
+    //    `AIL CP1 Init: ${sourceFiles.length} files detected, ${loadedLanguages.size} grammars loaded`
+    // );
 
     return { parsedFiles: [], parseErrors: [], languageParsers };
 }

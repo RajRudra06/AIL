@@ -69,8 +69,8 @@ export async function runLayer2(extensionPath: string): Promise<void> {
     const allCalls: CallEdge[] = [];
     const allRelationships: Relationship[] = [];
     const allFunctions: ComplexityInfo[] = [];
-
-    vscode.window.showInformationMessage(`AIL Layer 2: AST Streaming starting for ${sourceFiles.length} files...`);
+    // Quiet logging
+    // vscode.window.showInformationMessage(`AIL Layer 2: AST Streaming starting for ${sourceFiles.length} files...`);
 
     for (let i = 0; i < sourceFiles.length; i++) {
         const file = sourceFiles[i];

@@ -17,8 +17,8 @@ export function runCheckpoint8(manifest: Layer2Manifest): void {
             ? `⚠ ${manifest.summary.complexFunctionCount} complex functions`
             : 'No high-complexity functions',
     ].join(' · ');
-
-    vscode.window.showInformationMessage(summary);
+    // Console log only to prevent noisy UI toasts
+    // vscode.window.showInformationMessage(summary);
 
     console.log('AIL CP8 |', summary);
 }

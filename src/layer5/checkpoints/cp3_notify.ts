@@ -7,7 +7,9 @@ import { Layer5Manifest } from './cp2_assemble_manifest';
 export function runCheckpoint3(manifest: Layer5Manifest): void {
     console.log('AIL L5-CP3 | GraphRAG Engine ready.');
 
-    vscode.window.showInformationMessage(
-        `AIL: Layer 5 GraphRAG Ready. Indexed ${manifest.embedStats.embeddedNodes} semantic nodes for Chat.`
-    );
+    console.log('AIL L5-CP3 | GraphRAG Engine ready. Indexed ' + manifest.embedStats.embeddedNodes + ' semantic nodes for Chat.');
+    
+    // vscode.window.showInformationMessage(
+    //    `AIL: Layer 5 GraphRAG Ready. Indexed ${manifest.embedStats.embeddedNodes} semantic nodes for Chat.`
+    // );
 }

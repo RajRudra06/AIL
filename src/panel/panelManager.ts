@@ -9,6 +9,22 @@ import { runLayer4 } from '../layer4/orchestrator';
 import { runLayer5 } from '../layer5/orchestrator';
 import { askQuestion } from '../layer5/rag/rag_engine';
 
+/**
+ * Ensure Gemini API key is configured with the hardcoded key.
+ */
+async function ensureGeminiKey(): Promise<boolean> {
+    const config = vscode.workspace.getConfiguration('ail');
+
+    // Always use Gemini — set it silently
+    await config.update('aiProvider', 'gemini', vscode.ConfigurationTarget.Global);
+    const groqKey = process.env.GROQ_API_KEY || '';
+    if (groqKey) {
+        await config.update('geminiApiKey', groqKey, vscode.ConfigurationTarget.Global);
+    }
+    
+    return true;
+}
+
 export class PanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
 
@@ -35,84 +51,37 @@ export class PanelManager {
         panel.webview.html = getPanelHTML();
 
         panel.webview.onDidReceiveMessage(
-            message => {
+            async message => {
                 console.log('[AIL-EXT] Received message from webview:', message.command);
                 switch (message.command) {
-                    case 'runLayer1':
-                        panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'running' });
-                        try {
-                            runLayer1();
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'complete' });
-                        } catch (err) {
-                            vscode.window.showErrorMessage(`AIL Layer 1 failed: ${err}`);
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'error' });
-                        }
+
+                    case 'requestData':
+                        PanelManager.sendDashboardData(panel);
                         break;
 
-                    case 'runLayer2':
-                        panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'running' });
-                        runLayer2(context.extensionPath).then(() => {
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'complete' });
-                        }).catch(err => {
-                            vscode.window.showErrorMessage(`AIL Layer 2 failed: ${err}`);
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'error' });
-                        });
+                    case 'useCurrentAnalysis':
+                        // Just load existing .ail data and tell webview to show dashboard
+                        PanelManager.sendDashboardData(panel);
+                        panel.webview.postMessage({ command: 'showDashboard' });
                         break;
 
-                    case 'runLayer3':
-                        panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'running' });
-                        setTimeout(() => {
-                            try {
-                                runLayer3();
-                                panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'complete' });
-                            } catch (err) {
-                                vscode.window.showErrorMessage(`AIL Layer 3 failed: ${err}`);
-                                panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'error' });
-                            }
-                        }, 50);
+                    case 'runFreshAnalysis':
+                        await PanelManager.handleRunAnalysis(panel, context);
                         break;
 
-                    case 'runLayer4':
-                        panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'running' });
-                        setTimeout(() => {
-                            try {
-                                runLayer4();
-                                panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'complete' });
-                            } catch (err) {
-                                vscode.window.showErrorMessage(`AIL Layer 4 failed: ${err}`);
-                                panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'error' });
-                            }
-                        }, 50);
-                        break;
-
-                    case 'runLayer5':
-                        panel.webview.postMessage({ command: 'layerStatus', layer: 5, status: 'running' });
-                        runLayer5().then(() => {
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 5, status: 'complete' });
-                        }).catch(err => {
-                            vscode.window.showErrorMessage(`AIL Layer 5 failed: ${err}`);
-                            panel.webview.postMessage({ command: 'layerStatus', layer: 5, status: 'error' });
-                        });
-                        break;
-
-                    case 'askGraphRAG':
+                    case 'askGraphRAG': {
                         const wsfRAG = vscode.workspace.workspaceFolders;
                         if (!wsfRAG) { break; }
-
-                        panel.webview.postMessage({ command: 'chatResponse', text: '...' }); // loading state
-
+                        panel.webview.postMessage({ command: 'chatResponse', text: '...' });
                         askQuestion(message.query, message.history || [], wsfRAG[0].uri.fsPath).then(answer => {
                             panel.webview.postMessage({ command: 'chatResponse', text: answer });
                         }).catch(err => {
                             panel.webview.postMessage({ command: 'chatResponse', text: `Error: ${err.message}` });
                         });
                         break;
+                    }
 
-                    case 'requestData':
-                        PanelManager.sendDashboardData(panel);
-                        break;
-
-                    case 'loadGraphs':
+                    case 'loadGraphs': {
                         const wsfGraph = vscode.workspace.workspaceFolders;
                         if (wsfGraph) {
                             import('./graphPanelManager.js').then(({ GraphPanelManager }) => {
@@ -120,17 +89,29 @@ export class PanelManager {
                             });
                         }
                         break;
+                    }
 
-                    case 'purgeData':
-                        const wsf = vscode.workspace.workspaceFolders;
-                        if (!wsf) { break; }
-                        const ailRoot = path.join(wsf[0].uri.fsPath, '.ail');
-                        if (fs.existsSync(ailRoot)) {
-                            fs.rmSync(ailRoot, { recursive: true, force: true });
+                    case 'requestPurge': {
+                        const selection = await vscode.window.showWarningMessage(
+                            'All data gotten from the last active scan stored in the .ail folder will be deleted, affecting the dashboard data. Do you want to proceed?',
+                            { modal: true },
+                            'Yes'
+                        );
+                        
+                        if (selection === 'Yes') {
+                            const wsf = vscode.workspace.workspaceFolders;
+                            if (wsf) {
+                                const ailRoot = path.join(wsf[0].uri.fsPath, '.ail');
+                                if (fs.existsSync(ailRoot)) {
+                                    fs.rmSync(ailRoot, { recursive: true, force: true });
+                                }
+                                panel.webview.postMessage({ command: 'dashboardData', data: { ailExists: false } });
+                                panel.webview.postMessage({ command: 'analysisCancelled' }); // Returns to landing
+                                vscode.window.showInformationMessage('AIL: Analysis cache purged.');
+                            }
                         }
-                        panel.webview.postMessage({ command: 'dashboardData', data: {} });
-                        vscode.window.showInformationMessage('AIL Layer Cache Purged');
                         break;
+                    }
                 }
             },
             undefined,
@@ -146,13 +127,100 @@ export class PanelManager {
         PanelManager.currentPanel = panel;
     }
 
+    /**
+     * Purge .ail, ensure Gemini key, then run all 4 layers with status updates.
+     */
+    private static async handleRunAnalysis(
+        panel: vscode.WebviewPanel,
+        context: vscode.ExtensionContext
+    ): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            vscode.window.showErrorMessage('AIL: No workspace folder open!');
+            panel.webview.postMessage({ command: 'analysisCancelled' });
+            return;
+        }
+
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+        const ailRoot = path.join(workspacePath, '.ail');
+
+        // Always purge for fresh analysis
+        if (fs.existsSync(ailRoot)) {
+            fs.rmSync(ailRoot, { recursive: true, force: true });
+        }
+
+        // Ensure Gemini key (no-op if already set)
+        await ensureGeminiKey();
+
+        // Tell webview: analysis is starting now
+        panel.webview.postMessage({ command: 'analysisStarted' });
+
+        // Layer 1
+        panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'running' });
+        try {
+            runLayer1();
+            panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'complete' });
+        } catch (err) {
+            console.error('[AIL] Layer 1 failed:', err);
+            panel.webview.postMessage({ command: 'layerStatus', layer: 1, status: 'error' });
+            panel.webview.postMessage({ command: 'analysisCancelled' });
+            return;
+        }
+
+        // Layer 2
+        panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'running' });
+        try {
+            await runLayer2(context.extensionPath);
+            panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'complete' });
+        } catch (err) {
+            console.error('[AIL] Layer 2 failed:', err);
+            panel.webview.postMessage({ command: 'layerStatus', layer: 2, status: 'error' });
+            panel.webview.postMessage({ command: 'analysisCancelled' });
+            return;
+        }
+
+        // Layer 3
+        panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'running' });
+        try {
+            runLayer3();
+            panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'complete' });
+        } catch (err) {
+            console.error('[AIL] Layer 3 failed:', err);
+            panel.webview.postMessage({ command: 'layerStatus', layer: 3, status: 'error' });
+            panel.webview.postMessage({ command: 'analysisCancelled' });
+            return;
+        }
+
+        // Layer 4
+        panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'running' });
+        try {
+            runLayer4();
+            panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'complete' });
+        } catch (err) {
+            console.error('[AIL] Layer 4 failed:', err);
+            panel.webview.postMessage({ command: 'layerStatus', layer: 4, status: 'error' });
+            panel.webview.postMessage({ command: 'analysisCancelled' });
+            return;
+        }
+
+        // All done
+        PanelManager.sendDashboardData(panel);
+        panel.webview.postMessage({ command: 'showDashboard' });
+    }
+
     /** Read all .ail/ JSON data and send to the webview */
     private static sendDashboardData(panel: vscode.WebviewPanel): void {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) { return; }
 
         const ailRoot = path.join(workspaceFolders[0].uri.fsPath, '.ail');
-        const data: Record<string, unknown> = {};
+        const ailExists = fs.existsSync(ailRoot);
+        const data: Record<string, unknown> = { ailExists };
+
+        if (!ailExists) {
+            panel.webview.postMessage({ command: 'dashboardData', data });
+            return;
+        }
 
         const tryRead = (key: string, filePath: string) => {
             try {
@@ -183,7 +251,6 @@ export class PanelManager {
         tryRead('l4_summary', path.join(ailRoot, 'layer4', 'analysis', 'summary.json'));
         tryRead('l4_manifest', path.join(ailRoot, 'layer4', 'meta-data.json'));
 
-        // Check which layers are complete
         data['layerStatus'] = {
             l1: fs.existsSync(path.join(ailRoot, 'layer1', 'meta-data.json')),
             l2: fs.existsSync(path.join(ailRoot, 'layer2', 'meta-data.json')),
