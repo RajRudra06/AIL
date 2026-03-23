@@ -120,3 +120,27 @@ h2, h3 {
 .react-flow__attribution {
   display: none !important;
 }
+
+.sidebar-container {
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-container.collapsed {
+    border-right: none;
+    border-left: none;
+    box-shadow: none;
+}
+
+.sidebar-container.right-sidebar {
+    border-right: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+}
+
+
+/* Ensure children don't overflow during collapse animation */
+.sidebar-container.collapsed > * {
+    opacity: 0;
+    pointer-events: none;
+}

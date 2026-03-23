@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './SummaryPanel.css';
 
 interface SummaryPanelProps {
     markdown: string;
 }
 
-export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
+export const SummaryPanel: React.FC<SummaryPanelProps> = ({ 
+    markdown
+}) => {
     if (!markdown || markdown === '<LOADING>') {
+
         return (
             <div className="summary-panel" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                 <div className="ail-spinner"></div>
@@ -15,7 +18,6 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
     }
 
     // A very lightweight custom parser to break the LLM markdown into Segments 
-    // without pulling in a heavy markdown library since we have strict styling requirements.
     const segments: React.ReactNode[] = [];
     const lines = markdown.split('\n');
     
@@ -53,11 +55,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
 
     lines.forEach((line, index) => {
         const trimmed = line.trim();
-        
-        if (trimmed.startsWith('```')) {
-            isCodeBlock = !isCodeBlock;
-            return;
-        }
+        if (trimmed.startsWith('```')) { isCodeBlock = !isCodeBlock; return; }
         if (isCodeBlock) return; 
 
         if (trimmed.startsWith('#')) {
@@ -90,6 +88,7 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({ markdown }) => {
 
     return (
         <div className="summary-panel">
+            <h2 className="panel-title">Repository Architecture</h2>
             {segments}
         </div>
     );

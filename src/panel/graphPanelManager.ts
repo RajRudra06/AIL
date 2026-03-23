@@ -40,9 +40,8 @@ export class GraphPanelManager {
                             selection: new vscode.Range(line, 0, line, 0)
                         });
 
-                        // Highlight the specific line for 1 second as requested
                         const highlightDecoration = vscode.window.createTextEditorDecorationType({
-                            backgroundColor: 'rgba(255, 255, 0, 0.3)', // Temporary yellow flash
+                            backgroundColor: 'rgba(255, 255, 0, 0.3)',
                             isWholeLine: true
                         });
                         
@@ -52,7 +51,29 @@ export class GraphPanelManager {
                         setTimeout(() => {
                             highlightDecoration.dispose();
                         }, 1000);
+                    } else if (message.command === 'explainFunction') {
+                        try {
+                            const context = await GraphPanelManager.getFunctionContext(workspacePath, message.nodeId, 3);
+                            const response = await GraphPanelManager.callFunctionChatLLM(
+                                `Explain this function to me: ${message.label}\n\nCode Context (Target + Transitive Dependencies Depth 3):\n${context.code}\n\nRepo Structure:\n${context.meta}`,
+                                []
+                            );
+                            panel.webview.postMessage({ command: 'chatResponse', text: response });
+                        } catch (err: any) {
+                            console.error('[AIL] explainFunction error:', err);
+                            panel.webview.postMessage({ command: 'chatResponse', text: `> **Error**: ${err.message || 'Unknown error occurred during explanation.'}` });
+                        }
+                    } else if (message.command === 'askFunctionChat') {
+                        try {
+                            const context = await GraphPanelManager.getFunctionContext(workspacePath, message.nodeId, 3);
+                            const response = await GraphPanelManager.callFunctionChatLLM(message.query, message.history, context);
+                            panel.webview.postMessage({ command: 'chatResponse', text: response });
+                        } catch (err: any) {
+                            console.error('[AIL] askFunctionChat error:', err);
+                            panel.webview.postMessage({ command: 'chatResponse', text: `> **Error**: ${err.message || 'Failed to get response from AI.'}` });
+                        }
                     }
+
                 },
                 undefined,
                 context.subscriptions
@@ -205,7 +226,6 @@ export class GraphPanelManager {
             });
         }
     }
-
     private static async generateLLMSummary(summary: any): Promise<string> {
         const config = vscode.workspace.getConfiguration('ail');
         const provider = config.get<string>('aiProvider') || 'gemini';
@@ -244,28 +264,24 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
             let apiKey = config.get<string>('groqApiKey');
             if (apiKey && apiKey.trim() === '') apiKey = undefined;
             
-            // Aggressive fallback to workspace .env file
             if (!apiKey) {
                 const wsFolders = vscode.workspace.workspaceFolders;
                 if (wsFolders && wsFolders.length > 0) {
-                    const envPath = require('path').join(wsFolders[0].uri.fsPath, '.env');
+                    const envPath = path.join(wsFolders[0].uri.fsPath, '.env');
                     try {
-                        if (require('fs').existsSync(envPath)) {
-                            const envContent = require('fs').readFileSync(envPath, 'utf8');
+                        if (fs.existsSync(envPath)) {
+                            const envContent = fs.readFileSync(envPath, 'utf8');
                             const match = envContent.match(/GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
                             if (match && match[1]) apiKey = match[1].trim();
                         }
                     } catch (e) { console.error("Could not read .env", e); }
                 }
             }
-            // Failsafe check (Removed hardcoded key for security)
             if (!apiKey || apiKey.trim() === '') {
                 throw new Error('Groq API Key missing. Please set it in VSCode settings (ail.groqApiKey) or within a workspace .env file.');
             }
 
-            const model = 'llama-3.3-70b-versatile'; // Using bleeding-edge robust LLaMA 3.3 on Groq
-            if (!apiKey) throw new Error('Groq API Key missing. Please set it in VSCode settings or within a workspace .env file.');
-
+            const model = 'llama-3.3-70b-versatile';
             const url = "https://api.groq.com/openai/v1/chat/completions";
             const response = await fetch(url, {
                 method: 'POST',
@@ -286,7 +302,6 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
             if (data.error) throw new Error(data.error.message);
             return data.choices[0].message.content;
         } else {
-            // Azure OpenAI
             const endpoint = config.get<string>('azureOpenAiEndpoint');
             const apiKey = config.get<string>('azureOpenAiApiKey');
             const deploy = config.get<string>('azureOpenAiDeployment');
@@ -309,6 +324,94 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
             return data.choices[0].message.content;
         }
     }
+
+    private static async getFunctionContext(workspacePath: string, rootId: string, maxDepth: number): Promise<{code: string, meta: string}> {
+        const ailRoot = path.join(workspacePath, '.ail');
+        const entitiesPath = path.join(ailRoot, 'layer2', 'analysis', 'entities.json');
+        const callGraphPath = path.join(ailRoot, 'layer2', 'analysis', 'call_graph.json');
+        
+        if (!fs.existsSync(entitiesPath)) return { code: 'No entities found', meta: '' };
+
+        const entitiesData = JSON.parse(fs.readFileSync(entitiesPath, 'utf-8'));
+        const callGraphData = fs.existsSync(callGraphPath) ? JSON.parse(fs.readFileSync(callGraphPath, 'utf-8')) : { edges: [] };
+
+        const codeBodies: string[] = [];
+        const seenNodes = new Set<string>();
+        const queue: { id: string, depth: number }[] = [{ id: rootId, depth: 0 }];
+
+        while (queue.length > 0) {
+            const { id, depth } = queue.shift()!;
+            if (seenNodes.has(id) || depth > maxDepth) continue;
+            seenNodes.add(id);
+
+            const ent = (entitiesData.entities || []).find((e: any) => `${e.file}::${e.name}` === id);
+            if (ent) {
+                const absPath = path.join(workspacePath, ent.file);
+                if (fs.existsSync(absPath)) {
+                    const content = fs.readFileSync(absPath, 'utf-8').split('\n');
+                    const body = content.slice(Math.max(0, ent.startLine - 1), ent.endLine).join('\n');
+                    codeBodies.push(`--- FILE: ${ent.file} | ENTIY: ${ent.name} ---\n${body}\n`);
+                }
+            }
+
+            const children = (callGraphData.edges || []).filter((e: any) => e.caller === id);
+            children.forEach((c: any) => queue.push({ id: c.callee, depth: depth + 1 }));
+        }
+
+        const minifiedMeta = (entitiesData.entities || []).map((e: any) => `${e.file} -> ${e.name} (${e.type})`).join('\n');
+
+        return { code: codeBodies.join('\n\n'), meta: minifiedMeta };
+    }
+
+    private static async callFunctionChatLLM(query: string, history: any[], context?: {code: string, meta: string}): Promise<string> {
+        let apiKey: string | undefined;
+        const wsf = vscode.workspace.workspaceFolders;
+        if (wsf && wsf.length > 0) {
+            const envPath = path.join(wsf[0].uri.fsPath, '.env');
+            if (fs.existsSync(envPath)) {
+                const envContent = fs.readFileSync(envPath, 'utf8');
+                const match = envContent.match(/FUNC_CHAT_GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
+                if (match && match[1]) apiKey = match[1].trim();
+            }
+        }
+        if (!apiKey) apiKey = vscode.workspace.getConfiguration('ail').get<string>('groqApiKey');
+        if (!apiKey) throw new Error('Groq API Key (Dedicated) missing in .env as FUNC_CHAT_GROQ_API_KEY');
+
+        const systemPrompt = `You are AIL, an advanced architecture explorer. You specialize in explaining implementation details.
+You are given the code of a target function AND the code of its transitive dependencies (up to depth 3).
+You are also given a minified repository structure for context.
+
+Goal: Provide a clear, technical, and concise explanation as per the user's request. 
+Highlight how the function interacts with the dependencies provided in the context.
+
+Repo Structure Context:
+${context?.meta || ''}
+
+Code Context:
+${context?.code || ''}`;
+
+        const model = 'llama-3.3-70b-versatile';
+        const url = "https://api.groq.com/openai/v1/chat/completions";
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            ...history.slice(-6),
+            { role: 'user', content: query }
+        ];
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({ model: model, messages: messages, temperature: 0.2 })
+        });
+
+        const data: any = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.choices[0].message.content;
+    }
+
 }
 
 function getNonce() {

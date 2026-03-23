@@ -12,7 +12,9 @@ export interface FunctionNodeData {
     isExpanded?: boolean;
     onExpand?: (nodeId: string) => void;
     onClick?: (file: string, line: number) => void;
+    onExplain?: (nodeId: string, label: string, file: string) => void;
 }
+
 
 export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; targetPosition?: Position; sourcePosition?: Position }> = ({ 
     data, 
@@ -64,6 +66,24 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; target
                     {data.isExpanded ? '▼' : '▶'}
                 </button>
             )}
+
+            <button 
+                className="info-btn"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    console.log("Info button clicked for node:", id);
+                    if (data.onExplain) {
+                        data.onExplain(id, data.label, data.file);
+                    } else {
+                        console.error("onExplain handler not provided to node");
+                    }
+                }}
+                title="want AIL to explain this func to u?"
+            >
+                i
+            </button>
+
+
 
             <Handle type="source" position={sourcePosition} className="node-handle" />
             

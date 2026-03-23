@@ -225,14 +225,27 @@ export function getPanelHTML(): string {
         .empty-state { padding: 30px; text-align: center; color: #6b6b7b; font-style: italic; font-size: 12px; }
 
         /* Chat */
-        .chat-panel { background: #141418; border: 1px solid #2d2d35; border-radius: 10px; display: flex; flex-direction: column; max-height: 420px; height: 380px; }
+        .chat-panel { background: #141418; border: 1px solid #2d2d35; border-radius: 10px; display: flex; flex-direction: column; max-height: 480px; height: 420px; }
         .chat-header { padding: 14px 16px; border-bottom: 1px solid #2d2d35; font-size: 13px; font-weight: 600; color: #fff; }
-        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
-        .chat-bubble.ai { background: #1a1a1f; align-self: flex-start; color: #d4d4d4; }
-        .chat-bubble.user { background: #4a9eff; align-self: flex-end; color: #fff; }
+        .chat-bubble { max-width: 90%; padding: 12px 16px; border-radius: 12px; font-size: 12.5px; line-height: 1.6; position: relative; }
+        .chat-bubble.ai { background: #1a1a1f; align-self: flex-start; color: #d4d4d4; border: 1px solid rgba(255,255,255,0.05); }
+        .chat-bubble.user { background: #4a9eff; align-self: flex-end; color: #fff; box-shadow: 0 4px 12px rgba(74,158,255,0.2); }
         .chat-disabled { opacity: 0.5; pointer-events: none; }
         .chat-input { flex: 1; background: #1a1a1f; border: 1px solid #2d2d35; color: #d4d4d4; padding: 10px 12px; border-radius: 8px; font-size: 12px; outline: none; }
         .chat-input:focus { border-color: #4a9eff; }
+
+        /* Assistant Message Formatting */
+        .ai-bubble-content strong { color: #4a9eff; font-weight: 600; }
+        .ai-bubble-content .h3-style { color: #4a9eff; font-size: 14px; font-weight: 700; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(74,158,255,0.2); padding-bottom: 2px; }
+        .ai-bubble-content .h4-style { color: #7ebbff; font-size: 13px; font-weight: 600; margin-top: 10px; margin-bottom: 4px; display: flex; align-items: center; }
+        .ai-bubble-content .h4-style::before { content: '→'; margin-right: 6px; opacity: 0.6; }
+        .ai-bubble-content ul { margin: 8px 0; padding-left: 18px; list-style: none; }
+        .ai-bubble-content li { position: relative; margin-bottom: 4px; }
+        .ai-bubble-content li::before { content: '•'; position: absolute; left: -14px; color: #4a9eff; font-weight: bold; }
+        .ai-bubble-content code { background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 4px; font-family: monospace; color: #7ebbff; font-size: 0.9em; }
+        .ai-bubble-content pre { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; margin: 10px 0; overflow-x: auto; font-family: monospace; }
+        .ai-bubble-content pre code { background: transparent; padding: 0; color: #eeeeee; }
+
     </style>
 </head>
 <body>
@@ -703,16 +716,49 @@ export function getPanelHTML(): string {
         vscode.postMessage({ command: 'askGraphRAG', query: q, history: chatHistory });
         chatHistory.push({ role: 'user', content: q });
     }
+    function formatMessage(text) {
+        var html = text;
+        var bt = String.fromCharCode(96);
+        var tbt = bt + bt + bt;
+        // 1. Code Blocks
+        var cbRegex = new RegExp(tbt + '(?:\\\\w+)?\\\\n([\\\\s\\\\S]*?)\\\\n' + tbt, 'g');
+        html = html.replace(cbRegex, '<pre><code>$1</code></pre>');
+        // 2. Headings
+        html = html.replace(/^### (.*$)/gm, '<div class="h3-style">$1</div>');
+        html = html.replace(/^#### (.*$)/gm, '<div class="h4-style">$1</div>');
+        // 3. Bold (remove ** and wrap in strong)
+        html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+        // 4. Lists
+        html = html.replace(/^\\* (.*$)/gm, '<li>$1</li>');
+        html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\\/li>\\n?)+/g, function(m) { return '<ul>' + m + '</ul>'; });
+        // 5. Inline Code
+        var icRegex = new RegExp(bt + '([^' + bt + ']+)' + bt, 'g');
+        html = html.replace(icRegex, '<code>$1</code>');
+        // 6. Br
+        html = html.replace(/\\n(?!<ul|<li|<\\/ul|<\\/li|<pre|<\\/pre|<div|<\\/div)/g, '<br/>');
+        return html;
+    }
+
+
+
+
+
     var currentAiBubble = null;
     function appendChat(role, text) {
         var hist = document.getElementById('chat-history');
         var b = document.createElement('div');
         b.className = 'chat-bubble ' + role;
-        b.textContent = text;
+        if (role === 'ai') {
+            b.innerHTML = '<div class="ai-bubble-content">' + formatMessage(text) + '</div>';
+            currentAiBubble = b;
+        } else {
+            b.textContent = text;
+        }
         hist.appendChild(b);
         hist.scrollTop = hist.scrollHeight;
-        if (role === 'ai') currentAiBubble = b;
     }
+
 
     /* ── MESSAGE HANDLER ─────────────────────────── */
     window.addEventListener('message', function(e) {
@@ -753,11 +799,14 @@ export function getPanelHTML(): string {
             if (msg.text === '...') {
                 appendChat('ai', 'Thinking...');
             } else {
-                if (currentAiBubble) currentAiBubble.textContent = msg.text;
+                if (currentAiBubble) {
+                    currentAiBubble.innerHTML = '<div class="ai-bubble-content">' + formatMessage(msg.text) + '</div>';
+                }
                 chatHistory.push({ role: 'assistant', content: msg.text });
                 document.getElementById('chat-controls').classList.remove('chat-disabled');
             }
         }
+
     });
 
     /* Initial data request — only to check if .ail exists */
