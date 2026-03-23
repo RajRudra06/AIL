@@ -12,7 +12,6 @@ import { runCheckpoint7 } from './checkpoints/cp5_notify';
 /**
  * Run Layer 3 — Git Intelligence pipeline.
  * Requires Layer 2 to have completed.
- 
 */
 export function runLayer3(): void {
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -26,7 +25,7 @@ export function runLayer3(): void {
     // Verify Layer 2 is complete
     const layer2ManifestPath = path.join(workspacePath, '.ail', 'layer2', 'meta-data.json');
     if (!fs.existsSync(layer2ManifestPath)) {
-        vscode.window.showErrorMessage('AIL: Layer 2 must be completed first!');
+        vscode.window.showErrorMessage('AIL: Layer 2 must be completed first and make sure it is done!');
         return;
     }
 
