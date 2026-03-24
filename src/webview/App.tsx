@@ -23,9 +23,13 @@ const App: React.FC = () => {
     const [rightSidebarWidth, setRightSidebarWidth] = useState(0);
     const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
     const [chatNode, setChatNode] = useState<any>(null);
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [searchResults, setSearchResults] = useState<Node[]>([]);
+    const [currentSearchIndex, setCurrentSearchIndex] = useState<number>(-1);
     const [chatHistory, setChatHistory] = useState<Message[]>([]);
     const [isLoadingChat, setIsLoadingChat] = useState(false);
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+    const [viewMode, setViewMode] = useState<'relationships' | 'independent'>('relationships');
 
 
 
@@ -169,29 +173,62 @@ const App: React.FC = () => {
         };
     };
 
-    const initializeGraph = (data: any) => {
+    const initializeGraph = (data: any, mode: 'relationships' | 'independent' = 'relationships') => {
         if (!data || !data.graph || !data.graph.nodes) return;
 
         const nodesData: any[] = data.graph.nodes;
         const edgesData: any[] = data.graph.edges || [];
 
-        let rootNode: any = null;
-
-        if (nodesData.length > 0) {
+        if (mode === 'relationships') {
             const incomingCounts: Record<string, number> = {};
             edgesData.forEach(e => {
                 incomingCounts[e.target] = (incomingCounts[e.target] || 0) + 1;
             });
-            rootNode = nodesData.find(n => n.type === 'function' && !incomingCounts[n.id])
-                || nodesData.find(n => n.type === 'function')
-                || nodesData[0];
-        }
 
-        if (rootNode) {
-            const root = buildNode(rootNode, 1, edgesData, false);
-            const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements([root], [], 'LR');
+            // Find all potential roots (priority to functions with 0 incoming edges)
+            const roots = nodesData.filter(n => n.type === 'function' && !incomingCounts[n.id]);
+            
+            if (roots.length > 0) {
+                const rootNodes = roots.map(r => buildNode(r, 1, edgesData, false));
+                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rootNodes, [], 'LR');
+                setNodes(layoutedNodes);
+                setEdges(layoutedEdges);
+            } else if (nodesData.length > 0) {
+                // Fallback to first available node
+                const root = buildNode(nodesData[0], 1, edgesData, false);
+                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements([root], [], 'LR');
+                setNodes(layoutedNodes);
+                setEdges(layoutedEdges);
+            }
+        } else {
+            // Independent Nodes View
+            const incomingCounts: Record<string, number> = {};
+            const outgoingCounts: Record<string, number> = {};
+            
+            edgesData.forEach(e => {
+                incomingCounts[e.target] = (incomingCounts[e.target] || 0) + 1;
+                outgoingCounts[e.source] = (outgoingCounts[e.source] || 0) + 1;
+            });
+
+            // Truly independent: 0 incoming AND 0 outgoing
+            const independent = nodesData.filter(n => 
+                n.type === 'function' && 
+                !incomingCounts[n.id] && 
+                !outgoingCounts[n.id]
+            );
+
+            // Limited batch for performance
+            const batch = independent.slice(0, 30);
+            const batchNodes = batch.map(n => buildNode(n, 1, edgesData, false));
+            
+            // Layout in a single vertical column
+            const layoutedNodes = batchNodes.map((n, i) => ({
+                ...n,
+                position: { x: 100, y: i * 150 + 100 }
+            }));
+            
             setNodes(layoutedNodes);
-            setEdges(layoutedEdges);
+            setEdges([]);
         }
     };
 
@@ -382,6 +419,24 @@ const App: React.FC = () => {
                             <button className="view-btn disabled">Directory Graph</button>
                             <button className="view-btn disabled">Overall Graph</button>
                         </div>
+                    </div>
+
+                    <div className="view-section" style={{ marginLeft: '20px' }}>
+                        <div className="view-header">
+                            <span className="view-label">Relationship Mode</span>
+                        </div>
+                        <select 
+                            className="view-mode-select"
+                            value={viewMode}
+                            onChange={(e) => {
+                                const newMode = e.target.value as 'relationships' | 'independent';
+                                setViewMode(newMode);
+                                if (graphData) initializeGraph(graphData, newMode);
+                            }}
+                        >
+                            <option value="relationships">Relationship Based Nodes</option>
+                            <option value="independent">Independent Nodes</option>
+                        </select>
                     </div>
                     <button 
                         className="sidebar-toggle-btn" 

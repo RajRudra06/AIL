@@ -47,20 +47,10 @@
           "default": "text-embedding-3-small",
           "description": "The deployment name of your Embeddings model in Azure OpenAI"
         },
-        "ail.geminiApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Your Google Gemini API Key"
-        },
         "ail.geminiModel": {
           "type": "string",
           "default": "gemini-2.0-flash",
           "description": "The Gemini model to use for chat (selected at launch)"
-        },
-        "ail.groqApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Your Groq API Key"
         },
         "ail.aiProvider": {
           "type": "string",

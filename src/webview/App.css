@@ -267,3 +267,29 @@ h2, h3 {
   cursor: pointer;
 }
 
+
+/* View Mode Selector */
+.view-mode-select {
+    background: rgba(30, 30, 45, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    margin-top: 4px;
+}
+
+.view-mode-select:hover {
+    border-color: #ff0066;
+    box-shadow: 0 0 10px rgba(255, 0, 102, 0.3);
+}
+
+.view-mode-select option {
+    background: #1a1a2e;
+    color: #e0e0e0;
+}

@@ -310,7 +310,7 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
             let apiKey = ConfigUtils.getGroqApiKey('general');
             
             if (!apiKey || apiKey.trim() === '') {
-                throw new Error('Groq API Key missing. Please set it in VSCode settings (ail.groqApiKey) or within a workspace .env file.');
+                throw new Error('Groq API Key missing. Please set it in your workspace .env file (GROQ_API_KEY).');
             }
 
 

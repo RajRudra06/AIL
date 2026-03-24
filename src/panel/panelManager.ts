@@ -112,11 +112,10 @@ export class PanelManager {
                         );
                         
                         if (selection === 'Yes') {
-                            // Failsafe check (Removed hardcoded key for security)
-                            const config = vscode.workspace.getConfiguration('ail');
-                            const groqKey = config.get<string>('groqApiKey');
+                            // Failsafe check (Uses ConfigUtils for sole truth)
+                            const groqKey = ConfigUtils.getGroqApiKey('general');
                             if (!groqKey || groqKey.trim() === '') {
-                                throw new Error('Groq API Key missing. Please set it in VSCode settings (ail.groqApiKey) or within a workspace .env file.');
+                                throw new Error('Groq API Key missing. Please set it in your workspace .env file (GROQ_API_KEY).');
                             }
                             const wsf = vscode.workspace.workspaceFolders;
                             if (wsf) {
