@@ -261,30 +261,53 @@ const App: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
-            <div style={{ padding: '10px 20px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1e1e1e', zIndex: 10 }}>
-                <div>
-                    <h2 style={{ margin: 0, fontSize: '18px' }}><span style={{ color: '#0078d4' }}>AIL</span> Architecture Explorer</h2>
-                    <span style={{ fontSize: '12px', color: '#888' }}>Navigate complexity, depth by depth.</span>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    {isSidebarCollapsed && (
+            <div className="header-container">
+                <div className="explorer-title">
+                    <h2>
                         <button 
-                            className="view-btn" 
-                            style={{ background: '#0078d4', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+                            className="sidebar-toggle-btn" 
+                            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
                             onClick={() => {
-                                setSidebarWidth(340);
-                                setIsSidebarCollapsed(false);
+                                if (isSidebarCollapsed) {
+                                    setSidebarWidth(340);
+                                    setIsSidebarCollapsed(false);
+                                } else {
+                                    setSidebarWidth(0);
+                                    setIsSidebarCollapsed(true);
+                                }
                             }}
                         >
-                            Expand Sidebar
+                            {isSidebarCollapsed ? "→" : "←"}
                         </button>
-                    )}
-                    <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Views</span>
-                    <button className="view-btn active">Function Graph</button>
-                    <button className="view-btn disabled">Directory Graph</button>
-                    <button className="view-btn disabled">Overall Graph</button>
+                        <span className="ail-gradient">AIL</span> Architecture Explorer
+                    </h2>
+                    <span className="explorer-subtext">Navigate complexity, depth by depth.</span>
+                </div>
+
+                <div className="view-controls-container">
+                    <div className="view-section">
+                        <div className="view-header">
+                            <span className="view-label">View</span>
+                            <span className="view-tag">below option are diff view to look at the same codebase</span>
+                        </div>
+                        <div className="view-btn-group">
+                            <button className="view-btn active">Function Graph</button>
+                            <button className="view-btn disabled">Directory Graph</button>
+                            <button className="view-btn disabled">Overall Graph</button>
+                        </div>
+                    </div>
+                    <button 
+                        className="sidebar-toggle-btn" 
+                        title={isChatPanelOpen ? "Close Chat" : "Open Chat"}
+                        onClick={() => setIsChatPanelOpen(!isChatPanelOpen)}
+                    >
+                        {isChatPanelOpen ? "→" : "←"}
+                    </button>
                 </div>
             </div>
+
+
+
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
                 <div 

@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
+import { ConfigUtils } from '../../utils/configUtils';
 
 export interface NodeEmbedding {
     id: string;
@@ -78,8 +80,10 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
 
     if (!disableEmbeddings) {
         if (provider === 'gemini') {
-            const apiKey = config.get('geminiApiKey');
+            const apiKey = ConfigUtils.getGroqApiKey('general');
+
             if (!apiKey) {
+
                 console.warn(`[AIL] Gemini API key not set. Skipping embeddings generation.`);
             } else {
                 for (const node of nodeEmbeddings) {

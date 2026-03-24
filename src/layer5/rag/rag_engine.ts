@@ -423,37 +423,19 @@ async function askAzure(query: string, systemPrompt: string, history: ChatMessag
     return data.choices[0].message.content;
 }
 
+import { ConfigUtils } from '../../utils/configUtils';
+
 async function askGemini(query: string, systemPrompt: string, history: ChatMessage[], config: vscode.WorkspaceConfiguration): Promise<string> {
-    let apiKey = config.get<string>('geminiApiKey');
-    if (apiKey && apiKey.trim() === '') apiKey = undefined;
+    const apiKey = ConfigUtils.getGroqApiKey('general');
 
-    // Robust fallback to .env
     if (!apiKey) {
-        const wsFolders = vscode.workspace.workspaceFolders;
-        if (wsFolders && wsFolders.length > 0) {
-            const envPath = path.join(wsFolders[0].uri.fsPath, '.env');
-            try {
-                if (fs.existsSync(envPath)) {
-                    const envContent = fs.readFileSync(envPath, 'utf8');
-                    const match = envContent.match(/GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
-                    if (match && match[1]) apiKey = match[1].trim();
-                }
-            } catch (e) { console.error("Could not read .env in rag_engine", e); }
-        }
-    }
-
-    if (!apiKey) apiKey = process.env.GROQ_API_KEY;
-
-    // Final check (Removed hardcoded key for security)
-    if (!apiKey || apiKey.trim() === '') {
         return "Error: Groq API Key missing. Please check your .env file or VSCode settings.";
     }
-
-    if (!apiKey) { return "Please configure 'ail.geminiApiKey' in settings."; }
 
     // Use Groq's OpenAI-compatible endpoint with Llama 3.3
     const model = 'llama-3.3-70b-versatile';
     const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+
 
     const messages = [
         { role: 'system', content: systemPrompt },

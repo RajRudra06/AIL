@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ConfigUtils } from '../utils/configUtils';
 
 export class GraphPanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
+
 
     public static createOrShow(context: vscode.ExtensionContext, workspacePath: string) {
         const column = vscode.ViewColumn.Beside;
@@ -261,25 +263,12 @@ In 2-3 concise bullet points, summarize how the repository is organized and the 
 For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Complexity, File Churn, Blast Radius, Hidden Coupling), provide exactly ONE highly insightful bullet point explaining what it means for the maintainability of THIS specific project. Do NOT just list the raw stats.`;
 
         if (provider === 'groq' || provider === 'gemini') {
-            let apiKey = config.get<string>('groqApiKey');
-            if (apiKey && apiKey.trim() === '') apiKey = undefined;
+            let apiKey = ConfigUtils.getGroqApiKey('general');
             
-            if (!apiKey) {
-                const wsFolders = vscode.workspace.workspaceFolders;
-                if (wsFolders && wsFolders.length > 0) {
-                    const envPath = path.join(wsFolders[0].uri.fsPath, '.env');
-                    try {
-                        if (fs.existsSync(envPath)) {
-                            const envContent = fs.readFileSync(envPath, 'utf8');
-                            const match = envContent.match(/GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
-                            if (match && match[1]) apiKey = match[1].trim();
-                        }
-                    } catch (e) { console.error("Could not read .env", e); }
-                }
-            }
             if (!apiKey || apiKey.trim() === '') {
                 throw new Error('Groq API Key missing. Please set it in VSCode settings (ail.groqApiKey) or within a workspace .env file.');
             }
+
 
             const model = 'llama-3.3-70b-versatile';
             const url = "https://api.groq.com/openai/v1/chat/completions";
@@ -364,18 +353,9 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
     }
 
     private static async callFunctionChatLLM(query: string, history: any[], context?: {code: string, meta: string}): Promise<string> {
-        let apiKey: string | undefined;
-        const wsf = vscode.workspace.workspaceFolders;
-        if (wsf && wsf.length > 0) {
-            const envPath = path.join(wsf[0].uri.fsPath, '.env');
-            if (fs.existsSync(envPath)) {
-                const envContent = fs.readFileSync(envPath, 'utf8');
-                const match = envContent.match(/FUNC_CHAT_GROQ_API_KEY\s*=\s*['"]?([^'"\n\r]+)['"]?/);
-                if (match && match[1]) apiKey = match[1].trim();
-            }
-        }
-        if (!apiKey) apiKey = vscode.workspace.getConfiguration('ail').get<string>('groqApiKey');
-        if (!apiKey) throw new Error('Groq API Key (Dedicated) missing in .env as FUNC_CHAT_GROQ_API_KEY');
+        const apiKey = ConfigUtils.getGroqApiKey('func');
+        if (!apiKey) throw new Error('Groq API Key (Dedicated) missing in .env as FUNC_CHAT_GROQ_API_KEY or GROQ_API_KEY');
+
 
         const systemPrompt = `You are AIL, an advanced architecture explorer. You specialize in explaining implementation details.
 You are given the code of a target function AND the code of its transitive dependencies (up to depth 3).

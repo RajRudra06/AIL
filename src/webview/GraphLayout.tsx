@@ -50,13 +50,15 @@ interface GraphLayoutProps {
     nodes: Node[];
     edges: Edge[];
     onNodeClick?: (event: React.MouseEvent, node: Node) => void;
+    onNodesChange?: (changes: any[]) => void;
+    onEdgesChange?: (changes: any[]) => void;
 }
 
 const nodeTypes = {
     customFunction: FunctionNode
 };
 
-export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeClick }) => {
+export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeClick, onNodesChange, onEdgesChange }) => {
     
     // Default edge configurations
     const defaultEdgeOptions = {
@@ -73,8 +75,11 @@ export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeCl
                     edges={edges}
                     nodeTypes={nodeTypes}
                     onNodeClick={onNodeClick}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
                     connectionLineType={ConnectionLineType.SmoothStep}
                     defaultEdgeOptions={defaultEdgeOptions}
+
                     fitView
                     fitViewOptions={{ padding: 0.2 }}
                     minZoom={0.1}
