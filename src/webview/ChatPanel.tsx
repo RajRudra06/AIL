@@ -75,9 +75,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     <span className="header-icon">🤖</span>
                     <div className="header-text">
                         <span className="header-title">AIL Explainer</span>
-                        <span className="header-subtitle">{node?.label}</span>
+                        <span className="header-subtitle">
+                            {node?.id === 'multi-selection' ? 'Multi-Node Selection' : node?.label}
+                        </span>
                     </div>
                 </div>
+
                 <button className="close-panel-btn" onClick={onClose} title="Close Chat">✕</button>
             </div>
 
@@ -118,7 +121,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         type="text" 
                         placeholder={`Ask about ${node?.label}...`}
                         value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
+                        onChange={(e) => setInputValue((e.target as HTMLInputElement).value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     />
                     <button 

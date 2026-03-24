@@ -145,8 +145,24 @@ export function getPanelHTML(): string {
 
         .dash-content { flex: 1; padding: 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
 
-        /* Overview Card */
-        .overview-card { background: #141418; border: 1px solid #2d2d35; border-radius: 12px; padding: 24px; }
+        /* Overview Hero Card */
+        .overview-card { 
+            background: linear-gradient(135deg, #141418 0%, #1a1a1f 100%); 
+            border: 1px solid #2d2d35; 
+            border-radius: 12px; 
+            padding: 24px; 
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .overview-card:hover { border-color: #4a9eff; box-shadow: 0 8px 32px rgba(74,158,255,0.1); transform: translateY(-2px); }
+        .overview-card::after { 
+            content: 'VIEW ARCHITECTURAL DNA →'; 
+            position: absolute; top: 24px; right: 24px; 
+            font-size: 10px; font-weight: 700; color: #4a9eff; opacity: 0.6;
+        }
+
         .project-name { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 8px; }
         .project-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
         .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
@@ -459,8 +475,11 @@ export function getPanelHTML(): string {
         var epCount = (l1.entryPoints && l1.entryPoints.entryPoints) ? l1.entryPoints.entryPoints.length : 0;
         if (epCount > 0) h += statBox(epCount, 'Entry Points');
         h += '</div>';
+        h += '</div>';
+        card.onclick = () => openDetail('metadata');
         card.innerHTML = h;
     }
+
 
     function statBox(v, l) { return '<div class="stat-box"><div class="stat-val">' + v + '</div><div class="stat-label">' + l + '</div></div>'; }
     function formatSize(kb) { return kb > 1024 ? (kb/1024).toFixed(1)+' MB' : Math.round(kb)+' KB'; }
@@ -474,6 +493,8 @@ export function getPanelHTML(): string {
         { id: 'coupling',   icon: '🪢', title: 'Hidden Coupling',     desc: 'Detects file pairs that frequently change together in Git to expose implicit, undocumented dependencies.' },
         { id: 'entities',   icon: '🏗️', title: 'Code Entities',       desc: 'Catalogs all parsed structural boundaries (functions, classes) to fuel the semantic knowledge graph.' }
     ];
+
+
 
     function renderMetricCards() {
         var grid = document.getElementById('metric-grid');
@@ -537,7 +558,13 @@ export function getPanelHTML(): string {
             }
             return fns + ' functions, ' + cls + ' classes';
         }
+        if (id === 'metadata') {
+            var l1 = dashData.l1_manifest;
+            if (!l1) return 'No data';
+            return (l1.primaryLanguage || 'Unknown') + ' | ' + (l1.metrics?.totalFiles || 0) + ' files';
+        }
         return 'No data';
+
     }
 
     /* ── DETAIL PANEL ────────────────────────────── */
@@ -688,7 +715,73 @@ export function getPanelHTML(): string {
             h += '</tbody></table></div></div>';
         }
 
+        else if (id === 'metadata') {
+            var l1 = dashData.l1_manifest;
+            if (!l1) { h += '<div class="empty-state">No Layer 1 metadata found.</div>'; return h; }
+            
+            h += '<div class="detail-header"><h2>📊 Repository Metadata</h2>';
+            h += '<p>Detailed analysis from Phase 1 — including language distribution, execution model inference, entry points, and framework detection.</p></div>';
+
+            h += '<div class="detail-insights">';
+            h += insightChip(l1.primaryLanguage || 'N/A', 'Primary');
+            h += insightChip(l1.executionModel?.model || 'N/A', 'Exec Model');
+            h += insightChip(l1.frameworks?.totalFound || 0, 'Frameworks');
+            h += insightChip(l1.entryPoints?.totalFound || 0, 'Entry Points');
+            h += '</div>';
+
+            h += '<div class="detail-header"><h3>Language Distribution</h3></div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Language</th><th>Files</th><th>Percentage</th></tr></thead><tbody>';
+            var langs = (l1.languages && l1.languages.languages) || [];
+            for (var lang of langs) {
+                h += '<tr><td><strong>'+esc(lang.name)+'</strong></td><td>'+lang.fileCount+'</td><td>'+lang.percentage.toFixed(1)+'%</td></tr>';
+            }
+            h += '</tbody></table></div></div><br>';
+
+            h += '<div class="detail-header"><h3>Inferred Entry Points</h3></div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>File</th><th>Type</th><th>Confidence</th><th>Language</th></tr></thead><tbody>';
+            var eps = (l1.entryPoints && l1.entryPoints.entryPoints) || [];
+            for (var ep of eps) {
+                h += '<tr><td>'+esc(fname(ep.file))+'</td><td><span class="tag info">'+ep.type+'</span></td><td>'+ep.confidence+'</td><td>'+ep.language+'</td></tr>';
+            }
+            h += '</tbody></table></div></div><br>';
+
+            h += '<div class="detail-header"><h3>Detected Frameworks</h3></div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Name</th><th>Type</th><th>Language</th><th>Detection Source</th></tr></thead><tbody>';
+            var fws = (l1.frameworks && l1.frameworks.frameworks) || [];
+            for (var fw of fws) {
+                h += '<tr><td><strong>'+esc(fw.name)+'</strong></td><td>'+fw.type+'</td><td>'+fw.language+'</td><td>'+esc(fname(fw.source))+'</td></tr>';
+            }
+            h += '</tbody></table></div></div><br>';
+
+            h += '<div class="detail-header"><h3>Layer 2 Code Architecture</h3></div>';
+            var l2e = dashData.l2_entities || { entities: [] };
+            var ents = l2e.entities || [];
+            var counts = { function:0, class:0, interface:0, method:0, import:0, other:0 };
+            for (var ent of ents) {
+                if (counts[ent.type] !== undefined) counts[ent.type]++;
+                else counts.other++;
+            }
+            h += '<div class="detail-insights">';
+            h += insightChip(counts.function, 'Functions', '#4a9eff');
+            h += insightChip(counts.class, 'Classes', '#a855f7');
+            h += insightChip(counts.method, 'Methods', '#51CF66');
+            h += insightChip(counts.interface, 'Interfaces', '#FFD43B');
+            h += insightChip(counts.import || 'N/A', 'Imports', '#858585');
+            h += '</div>';
+
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Entity Category</th><th>Total Count</th><th>Architectural Impact</th></tr></thead><tbody>';
+            h += '<tr><td><strong>Functions</strong></td><td>'+counts.function+'</td><td>Core logic units</td></tr>';
+            h += '<tr><td><strong>Classes</strong></td><td>'+counts.class+'</td><td>State containers</td></tr>';
+            h += '<tr><td><strong>Methods</strong></td><td>'+counts.method+'</td><td>Behavioral members</td></tr>';
+            h += '<tr><td><strong>Interfaces/Types</strong></td><td>'+counts.interface+'</td><td>Structural contracts</td></tr>';
+            h += '<tr><td><strong>Imports</strong></td><td>'+(counts.import || 0)+'</td><td>Dependency fan-in</td></tr>';
+            h += '</tbody></table></div></div>';
+
+        }
+
+
         return h;
+
     }
 
     function insightChip(val, label, color) {

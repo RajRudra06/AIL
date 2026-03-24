@@ -86,8 +86,9 @@ export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeCl
                     maxZoom={2}
                     nodesDraggable={false} // Lock to algorithmic layout
                     nodesConnectable={false}
-                    elementsSelectable={true}
+
                 >
+
                     <Background 
                         variant={BackgroundVariant.Dots} 
                         gap={15} 

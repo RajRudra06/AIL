@@ -21,12 +21,12 @@ export class ConfigUtils {
                     try {
                         const envContent = fs.readFileSync(envPath, 'utf8');
                         const varName = (type === 'func') ? 'FUNC_CHAT_GROQ_API_KEY' : 'GROQ_API_KEY';
-                        
+
                         const lines = envContent.split(/\r?\n/);
                         for (const line of lines) {
                             const trimmedLine = line.trim();
                             if (trimmedLine.startsWith('#') || !trimmedLine.includes('=')) continue;
-                            
+
                             const [key, ...valueParts] = trimmedLine.split('=');
                             if (key.trim() === varName) {
                                 let value = valueParts.join('=').trim();
@@ -60,8 +60,4 @@ export class ConfigUtils {
         return (apiKey && apiKey.trim() !== '') ? apiKey.trim() : undefined;
     }
 }
-
-// ok next change is for looking at the multiple function together at once and ask the chanbot on teh right which tell us about teh func see i want that when i hold cmd(ctrl in case of window) and click on different func nodes all nodes which i click thru this shjoudl get highleted and teh edges conatining it shoudl also get higheledt bacially get a chain whcih is highlested and then i should be able to ask teh chatbot abou the contribution of the chain in overall project or func graph so paylaod to LLM in case groq will be all slected func and their content and ther name and parms and theri defination with the main question ebing what does these slected n func achive as a unit and also need to pass again a smaller veriosn of entrie meta json from layer 2 so LLM can undetadn teh repo to some extent 
-
-// so take ur time implemnetig this dont rush it
 

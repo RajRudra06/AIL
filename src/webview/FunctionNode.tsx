@@ -16,9 +16,10 @@ export interface FunctionNodeData {
 }
 
 
-export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; targetPosition?: Position; sourcePosition?: Position }> = ({ 
+export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; selected?: boolean; targetPosition?: Position; sourcePosition?: Position }> = ({ 
     data, 
     id, 
+    selected,
     sourcePosition = Position.Bottom, 
     targetPosition = Position.Top 
 }) => {
@@ -39,15 +40,15 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; target
 
     return (
         <div 
-            className="function-node" 
+            className={`function-node ${selected ? 'selected' : ''}`} 
             style={{ 
                 backgroundColor: colors.bg, 
                 borderColor: colors.border,
                 color: colors.text,
                 boxShadow: `0 4px 12px ${colors.glow}, inset 0 0 8px ${colors.glow}`
             }}
-            onClick={() => data.onClick && data.onClick(data.file, data.startLine)}
         >
+
             <Handle type="target" position={targetPosition} className="node-handle" />
             
             <div className="node-content">

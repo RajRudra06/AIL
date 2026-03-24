@@ -168,3 +168,25 @@
     transform: scale(1.2);
 }
 
+.function-node.selected {
+    border-color: #ff0066 !important;
+    box-shadow: 0 0 20px rgba(255, 0, 102, 0.4), inset 0 0 10px rgba(255, 0, 102, 0.2);
+    background: rgba(255, 0, 102, 0.05);
+    transform: scale(1.05);
+}
+
+.function-node.selected::after {
+    content: "SELECTED";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    font-weight: 800;
+    color: #ff0066;
+    letter-spacing: 1px;
+    background: rgba(30, 30, 30, 0.8);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 0, 102, 0.3);
+}

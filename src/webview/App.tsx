@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import './App.css';
 
 import { GraphLayout } from './GraphLayout';
 import { getLayoutedElements } from './layoutUtils';
-import { Node, Edge } from '@xyflow/react';
+import { Node, Edge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange } from '@xyflow/react';
 import { SummaryPanel } from './SummaryPanel';
 import { ChatPanel } from './ChatPanel';
+
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
@@ -24,6 +25,10 @@ const App: React.FC = () => {
     const [chatNode, setChatNode] = useState<any>(null);
     const [chatHistory, setChatHistory] = useState<Message[]>([]);
     const [isLoadingChat, setIsLoadingChat] = useState(false);
+    const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+
+
+
 
     // Use Refs to bypass stale closures for callbacks bound inside nodes
     const graphDataRef = React.useRef<any>(null);
@@ -109,6 +114,29 @@ const App: React.FC = () => {
         return () => window.removeEventListener('message', handleMessage);
     }, []);
 
+    useEffect(() => {
+        if (window.vscode) {
+            window.vscode.postMessage({ command: 'getGraph' });
+        }
+    }, []);
+
+
+    const onNodesChange = (changes: NodeChange[]) => {
+        setNodes((nds) => applyNodeChanges(changes, nds));
+    };
+
+    // Effect to keep selectedNodeIds in sync with node selected state
+    useEffect(() => {
+        const selected = nodes.filter(n => n.selected).map(n => n.id);
+        setSelectedNodeIds(selected);
+    }, [nodes]);
+
+
+    const onEdgesChange = (changes: EdgeChange[]) => {
+        setEdges((eds) => applyEdgeChanges(changes, eds));
+    };
+
+
     // --- Graph Engine --- //
 
     const buildNode = (nodeData: any, depth: number, edgesData: any[], isExpanded: boolean = false): Node => {
@@ -122,6 +150,8 @@ const App: React.FC = () => {
             id,
             type: 'customFunction',
             position: { x: 0, y: 0 },
+            connectable: false,
+            selectable: false,
             data: {
                 label,
                 file: nodeData.file || 'unknown',
@@ -132,7 +162,9 @@ const App: React.FC = () => {
                 isExpanded,
                 onExpand: handleExpand,
                 onClick: handleNodeClick,
-                onExplain: handleExplainFunction
+                onExplain: handleExplainFunction,
+                params: nodeData.params || [],
+                metadata: nodeData.metadata || {}
             }
         };
     };
@@ -235,17 +267,23 @@ const App: React.FC = () => {
         return descendants;
     };
 
-    const handleNodeClick = (file: string, line: number) => {
-        window.vscode.postMessage({
-            command: 'jumpToCode',
-            file: file,
-            line: line
-        });
+    const handleNodeClick = (event: React.MouseEvent, node: Node) => {
+        if (event.metaKey || event.ctrlKey) {
+            // Manual selection toggle
+            setNodes((nds) => 
+                nds.map((n) => n.id === node.id ? { ...n, selected: !n.selected } : n)
+            );
+        } else {
+            // Navigation
+            console.log("React handleNodeClick navigation", node.data.file, node.data.startLine);
+            window.vscode.postMessage({ command: 'jumpToCode', file: node.data.file, line: node.data.startLine });
+        }
     };
+
     
     const handleExplainFunction = (nodeId: string, label: string, file: string) => {
         console.log("React handleExplainFunction", nodeId);
-        setChatNode({ id: nodeId, label, file });
+        setChatNode({ id: nodeId, label, file, isMulti: false });
         setIsChatPanelOpen(true);
         setRightSidebarWidth(380);
         setChatHistory([]);
@@ -258,6 +296,55 @@ const App: React.FC = () => {
             file 
         });
     };
+
+    const handleExplainSelection = () => {
+        if (selectedNodeIds.length === 0) return;
+        
+        const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id));
+        const labels = selectedNodes.map(n => n.data.label).join(', ');
+        
+        console.log("React handleExplainSelection", selectedNodeIds);
+        setChatNode({ 
+            id: 'multi-selection', 
+            label: `Selection: ${labels}`, 
+            isMulti: true, 
+            nodes: selectedNodes.map(n => ({ id: n.id, label: n.data.label, file: n.data.file }))
+        });
+        
+        setIsChatPanelOpen(true);
+        setRightSidebarWidth(380);
+        setChatHistory([]);
+        setIsLoadingChat(true);
+
+        window.vscode.postMessage({
+            command: 'explainMultipleFunctions',
+            nodes: selectedNodes.map(n => ({
+                id: n.id,
+                label: n.data.label,
+                file: n.data.file,
+                params: (n.data as any).params || '[]',
+                metadata: (n.data as any).metadata || {}
+            })),
+            query: `What do these selected ${selectedNodeIds.length} functions achieve as a unit? What is their collective contribution to the overall project and function graph?`
+        });
+    };
+
+
+    const styledEdges = useMemo(() => {
+        return edges.map(edge => {
+            const isHighlighted = selectedNodeIds.includes(edge.source) && selectedNodeIds.includes(edge.target);
+            if (isHighlighted) {
+                return {
+                    ...edge,
+                    animated: true,
+                    style: { ...edge.style, stroke: '#ff0066', strokeWidth: 3, opacity: 1, filter: 'drop-shadow(0 0 5px #ff0066)' }
+                };
+            }
+            return edge;
+        });
+    }, [edges, selectedNodeIds]);
+
+    const summaryMarkdown = graphData ? graphData.report : '';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
@@ -303,8 +390,32 @@ const App: React.FC = () => {
                     >
                         {isChatPanelOpen ? "→" : "←"}
                     </button>
+                    {selectedNodeIds.length > 0 && (
+                        <button 
+                            className="view-btn explain-selection-btn"
+                            style={{ 
+                                marginLeft: '15px', 
+                                background: 'linear-gradient(135deg, #ff0066 0%, #ff5c93 100%)',
+                                color: 'white',
+                                fontWeight: 'bold',
+                                border: 'none',
+                                animation: 'pulse 2s infinite'
+                            }}
+                            onClick={handleExplainSelection}
+                        >
+                            Analyze Selection ({selectedNodeIds.length})
+                        </button>
+                    )}
+                    {selectedNodeIds.length > 0 && (
+                        <div style={{ marginLeft: '10px', fontSize: '11px', color: '#ff0066', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#ff0066', animation: 'pulse 1s infinite' }}></span>
+                            {selectedNodeIds.length} Functions Active
+                        </div>
+                    )}
                 </div>
             </div>
+
+
 
 
 
@@ -341,6 +452,7 @@ const App: React.FC = () => {
                     <SummaryPanel markdown={graphData ? graphData.report : ''} />
                 </div>
 
+
                 <div
                     title="Resize Left Sidebar"
                     style={{ width: '4px', cursor: 'col-resize', background: '#333', zIndex: 20 }}
@@ -351,7 +463,14 @@ const App: React.FC = () => {
 
                 <div style={{ flex: 1, position: 'relative' }}>
                     {nodes.length > 0 ? (
-                        <GraphLayout nodes={nodes} edges={edges} />
+                        <GraphLayout 
+                            nodes={nodes} 
+                            edges={styledEdges} 
+                            onNodeClick={handleNodeClick}
+                            onNodesChange={onNodesChange}
+                            onEdgesChange={onEdgesChange}
+                        />
+
                     ) : (
                         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#888' }}>
                             {graphData ? "No entries found in Adjacency List" : "Loading Architecture..."}
@@ -399,11 +518,13 @@ const App: React.FC = () => {
                             setIsLoadingChat(true);
                             
                             window.vscode.postMessage({
-                                command: 'askFunctionChat',
+                                command: chatNode.isMulti ? 'askMultipleFunctionsChat' : 'askFunctionChat',
                                 nodeId: chatNode.id,
                                 query: msg,
-                                history: updatedHistory
+                                history: updatedHistory,
+                                nodes: chatNode.nodes // Only sent if isMulti is true
                             });
+
                         }}
 
                     />

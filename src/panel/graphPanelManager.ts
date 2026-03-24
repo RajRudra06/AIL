@@ -13,7 +13,7 @@ export class GraphPanelManager {
         if (GraphPanelManager.currentPanel) {
             GraphPanelManager.currentPanel.reveal(column);
             // Re-send data in case it changed
-            GraphPanelManager.sendGraphData(workspacePath);
+            GraphPanelManager.sendGraphData(GraphPanelManager.currentPanel!, workspacePath);
         } else {
             const panel = vscode.window.createWebviewPanel(
                 'ailGraphView',
@@ -53,6 +53,10 @@ export class GraphPanelManager {
                         setTimeout(() => {
                             highlightDecoration.dispose();
                         }, 1000);
+                    } else if (message.command === 'getGraph') {
+                        await GraphPanelManager.sendGraphData(panel, workspacePath);
+                    } else if (message.command === 'getRepoMetadata') {
+                        await GraphPanelManager.sendRepoMetadata(panel, workspacePath);
                     } else if (message.command === 'explainFunction') {
                         try {
                             const context = await GraphPanelManager.getFunctionContext(workspacePath, message.nodeId, 3);
@@ -74,7 +78,30 @@ export class GraphPanelManager {
                             console.error('[AIL] askFunctionChat error:', err);
                             panel.webview.postMessage({ command: 'chatResponse', text: `> **Error**: ${err.message || 'Failed to get response from AI.'}` });
                         }
+                    } else if (message.command === 'explainMultipleFunctions') {
+                        try {
+                            const context = await GraphPanelManager.getMultipleFunctionsContext(workspacePath, message.nodes);
+                            const response = await GraphPanelManager.callFunctionChatLLM(
+                                `What do these ${message.nodes.length} functions achieve as a unit?\n\nCode Context:\n${context.code}\n\nRepo Structure:\n${context.meta}`,
+                                []
+                            );
+                            panel.webview.postMessage({ command: 'chatResponse', text: response });
+                        } catch (err: any) {
+                            console.error('[AIL] explainMultipleFunctions error:', err);
+                            panel.webview.postMessage({ command: 'chatResponse', text: `> **Error**: ${err.message || 'Failed to analyze selection.'}` });
+                        }
+                    } else if (message.command === 'askMultipleFunctionsChat') {
+                        try {
+                            const context = await GraphPanelManager.getMultipleFunctionsContext(workspacePath, message.nodes);
+                            const response = await GraphPanelManager.callFunctionChatLLM(message.query, message.history, context);
+                            panel.webview.postMessage({ command: 'chatResponse', text: response });
+                        } catch (err: any) {
+                            console.error('[AIL] askMultipleFunctionsChat error:', err);
+                            panel.webview.postMessage({ command: 'chatResponse', text: `> **Error**: ${err.message || 'Failed to get response from AI.'}` });
+                        }
                     }
+
+
 
                 },
                 undefined,
@@ -90,10 +117,10 @@ export class GraphPanelManager {
             // Set static HTML pointing to our React bundle
             panel.webview.html = GraphPanelManager.getHtmlForWebview(panel.webview, context.extensionUri);
 
-            // Small delay to ensure webview is ready to receive messages
             setTimeout(() => {
-                GraphPanelManager.sendGraphData(workspacePath);
+                GraphPanelManager.sendGraphData(panel, workspacePath);
             }, 500);
+
         }
     }
 
@@ -127,7 +154,24 @@ export class GraphPanelManager {
             </html>`;
     }
 
-    private static sendGraphData(workspacePath: string) {
+    private static async sendRepoMetadata(panel: vscode.WebviewPanel, workspacePath: string) {
+        try {
+            const ailRoot = path.join(workspacePath, '.ail');
+            const metaPath = path.join(ailRoot, 'layer1', 'meta-data.json');
+            
+            if (fs.existsSync(metaPath)) {
+                const metaData = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+                panel.webview.postMessage({ command: 'repoMetadata', data: metaData });
+            } else {
+                panel.webview.postMessage({ command: 'repoMetadata', data: null });
+            }
+        } catch (err) {
+            console.error('[AIL] sendRepoMetadata error:', err);
+            panel.webview.postMessage({ command: 'repoMetadata', data: null });
+        }
+    }
+
+    private static async sendGraphData(panel: vscode.WebviewPanel, workspacePath: string) {
         if (!GraphPanelManager.currentPanel) { return; }
 
         const ailRoot = path.join(workspacePath, '.ail');
@@ -351,6 +395,45 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
 
         return { code: codeBodies.join('\n\n'), meta: minifiedMeta };
     }
+
+    private static async getMultipleFunctionsContext(workspacePath: string, nodeInfos: { id: string, file: string, label: string }[]): Promise<{code: string, meta: string}> {
+        const ailRoot = path.join(workspacePath, '.ail');
+        const entitiesPath = path.join(ailRoot, 'layer2', 'analysis', 'entities.json');
+        
+        if (!fs.existsSync(entitiesPath)) return { code: 'No entities found', meta: '' };
+        const entitiesData = JSON.parse(fs.readFileSync(entitiesPath, 'utf-8'));
+
+        const codeBodies: string[] = [];
+
+        for (const info of nodeInfos) {
+            const ent = (entitiesData.entities || []).find((e: any) => `${e.file}::${e.name}` === info.id);
+            if (ent) {
+                const absPath = path.join(workspacePath, ent.file);
+                if (fs.existsSync(absPath)) {
+                    const content = fs.readFileSync(absPath, 'utf-8').split('\n');
+                    const body = content.slice(Math.max(0, ent.startLine - 1), ent.endLine).join('\n');
+                    
+                    const params = Array.isArray(ent.params) ? ent.params.join(', ') : 'none';
+                    const metadata = ent.metadata ? JSON.stringify(ent.metadata) : '{}';
+
+                    codeBodies.push(`--- FILE: ${ent.file} | ENTITY: ${ent.name} ---
+Parameters: (${params})
+Metadata: ${metadata}
+Code:
+${body}\n`);
+                }
+            }
+        }
+
+
+        const minifiedMeta = (entitiesData.entities || [])
+            .slice(0, 100) // Limit to first 100 entities to avoid context overflow
+            .map((e: any) => `${e.file} -> ${e.name} (${e.type})`)
+            .join('\n');
+        return { code: codeBodies.join('\n\n'), meta: minifiedMeta };
+
+    }
+
 
     private static async callFunctionChatLLM(query: string, history: any[], context?: {code: string, meta: string}): Promise<string> {
         const apiKey = ConfigUtils.getGroqApiKey('func');
