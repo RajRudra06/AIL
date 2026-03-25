@@ -81,6 +81,26 @@ The VS Code GUI is rendered using a Webview.
 *   `panelManager.ts`: The backend bridge. It handles `vscode.postMessage` communication between the extension and the Webview (e.g., passing the JSON graph data to the frontend or handling "Open File" clicks).
 *   `panelUI.ts`: The frontend HTML/JS payload. It contains the tab logic, tables, and the `vis-network` graph clustering logic.
 
+### Large-Repository Reliability Safeguards
+
+For monorepos and graph-heavy repositories, AIL now applies a defensive transport and rendering strategy:
+
+1. **Graph Payload Pruning (Host-Side)**
+    - The extension host ranks nodes/edges and sends a capped payload to the graph webview.
+    - This prevents silent message drops caused by oversized `postMessage` payloads.
+
+2. **Handshake + Retry Protocol**
+    - Webview emits `graphWebviewReady` and receives graph payload via `loadGraphData`.
+    - Webview issues bounded `getGraph` retries until data is acknowledged.
+
+3. **Delivery Acknowledgement**
+    - Webview emits `graphDataAck` after ingestion.
+    - Host logs ACK telemetry (`nodes`, `edges`) for troubleshooting.
+
+4. **Dense-Graph Fast Layout Fallback**
+    - When node/edge density exceeds safe Dagre thresholds, frontend falls back to a fast grid layout.
+    - Prevents UI stalls while preserving graph navigation and node interactions.
+
 ## 6. Local Development & Debugging
 
 1. **Install Dependencies**: `npm install`

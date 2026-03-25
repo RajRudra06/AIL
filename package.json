@@ -52,6 +52,11 @@
           "default": "gemini-2.0-flash",
           "description": "The Gemini model to use for chat (selected at launch)"
         },
+        "ail.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Gemini API key fallback when .env does not define GEMINI_API_KEY or GOOGLE_API_KEY"
+        },
         "ail.aiProvider": {
           "type": "string",
           "enum": [

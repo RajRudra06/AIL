@@ -3,15 +3,21 @@ import './App.css';
 
 import { GraphLayout } from './GraphLayout';
 import { getLayoutedElements } from './layoutUtils';
-import { Node, Edge, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange } from '@xyflow/react';
+import { Node, Edge, Position, applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange } from '@xyflow/react';
 import { SummaryPanel } from './SummaryPanel';
 import { ChatPanel } from './ChatPanel';
-
+import { VisGraph } from './VisGraph';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
 }
+
+type GraphViewMode = 'function' | 'directory' | 'sequence' | 'overall';
+
+const NODE_PAGE_SIZE = 25;
+const MAX_LAYOUT_NODES_FOR_DAGRE = 320;
+const MAX_LAYOUT_EDGES_FOR_DAGRE = 1400;
 
 const App: React.FC = () => {
 
@@ -30,9 +36,13 @@ const App: React.FC = () => {
     const [isLoadingChat, setIsLoadingChat] = useState(false);
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
     const [viewMode, setViewMode] = useState<'relationships' | 'independent'>('relationships');
-
-
-
+    const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('function');
+    const [relationshipLimit, setRelationshipLimit] = useState<number>(NODE_PAGE_SIZE);
+    const [independentLimit, setIndependentLimit] = useState<number>(NODE_PAGE_SIZE);
+    const [relationshipTotal, setRelationshipTotal] = useState<number>(0);
+    const [independentTotal, setIndependentTotal] = useState<number>(0);
+    const [llmLimit, setLlmLimit] = useState<number>(1);
+    const [graphLoadError, setGraphLoadError] = useState<string | null>(null);
 
     // Use Refs to bypass stale closures for callbacks bound inside nodes
     const graphDataRef = React.useRef<any>(null);
@@ -88,8 +98,21 @@ const App: React.FC = () => {
             switch (message.command) {
                 case 'loadGraphData':
                     console.log("React received graph data");
+                    setRelationshipLimit(NODE_PAGE_SIZE);
+                    setIndependentLimit(NODE_PAGE_SIZE);
+                    setGraphLoadError(null);
                     setGraphData(message.data);
-                    initializeGraph(message.data);
+                    window.vscode?.postMessage({
+                        command: 'graphDataAck',
+                        nodes: message.data?.graph?.nodes?.length || 0,
+                        edges: message.data?.graph?.edges?.length || 0
+                    });
+                    try {
+                        initializeGraph(message.data);
+                    } catch (err: any) {
+                        console.error('Graph initialization failed', err);
+                        setGraphLoadError('Graph initialization failed: ' + (err?.message || 'unknown error'));
+                    }
                     break;
                 case 'explainFunction':
                 case 'chatResponse':
@@ -119,10 +142,36 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (window.vscode) {
-            window.vscode.postMessage({ command: 'getGraph' });
+        if (!window.vscode) {
+            setGraphLoadError('VS Code API unavailable inside webview.');
+            return;
         }
+
+        // Explicit ready ping helps avoid races where host sends before listeners settle.
+        window.vscode.postMessage({ command: 'graphWebviewReady' });
+
+        let attempts = 0;
+        const maxAttempts = 8;
+        const requestGraph = () => {
+            if (graphDataRef.current?.graph?.nodes?.length) {
+                return;
+            }
+            attempts += 1;
+            window.vscode.postMessage({ command: 'getGraph' });
+            if (attempts >= maxAttempts && !graphDataRef.current?.graph?.nodes?.length) {
+                setGraphLoadError('Graph payload not received. Try reopening Graph View.');
+            }
+        };
+
+        requestGraph();
+        const timer = window.setInterval(requestGraph, 1200);
+        return () => window.clearInterval(timer);
     }, []);
+
+    useEffect(() => {
+        if (!graphData) return;
+        initializeGraph(graphData, viewMode, graphViewMode);
+    }, [relationshipLimit, independentLimit]);
 
 
     const onNodesChange = (changes: NodeChange[]) => {
@@ -158,6 +207,7 @@ const App: React.FC = () => {
             selectable: false,
             data: {
                 label,
+                nodeType: nodeData.type,
                 file: nodeData.file || 'unknown',
                 startLine: nodeData.startLine || 0,
                 endLine: nodeData.endLine || 0,
@@ -173,63 +223,291 @@ const App: React.FC = () => {
         };
     };
 
-    const initializeGraph = (data: any, mode: 'relationships' | 'independent' = 'relationships') => {
+    const applyFastGridLayout = (inputNodes: Node[], direction: 'LR' | 'TB' = 'LR'): Node[] => {
+        const cols = direction === 'LR' ? 14 : 10;
+        const xGap = direction === 'LR' ? 260 : 220;
+        const yGap = direction === 'LR' ? 130 : 170;
+
+        return inputNodes.map((n, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = direction === 'LR' ? row * xGap + 40 : col * xGap + 40;
+            const y = direction === 'LR' ? col * yGap + 40 : row * yGap + 40;
+            return {
+                ...n,
+                position: { x, y },
+                targetPosition: direction === 'LR' ? Position.Left : Position.Top,
+                sourcePosition: direction === 'LR' ? Position.Right : Position.Bottom,
+            };
+        });
+    };
+
+    const finalizeLayout = (
+        builtNodes: Node[],
+        builtEdges: Edge[],
+        direction: 'LR' | 'TB',
+        useSwimlanes: boolean
+    ) => {
+        if (builtNodes.length > MAX_LAYOUT_NODES_FOR_DAGRE || builtEdges.length > MAX_LAYOUT_EDGES_FOR_DAGRE) {
+            const fastNodes = applyFastGridLayout(builtNodes, direction);
+            const fastEdges = builtEdges.map(e => ({ ...e, animated: false }));
+            setNodes(fastNodes);
+            setEdges(fastEdges);
+            return;
+        }
+
+        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+            builtNodes,
+            builtEdges,
+            direction,
+            useSwimlanes
+        );
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
+    };
+
+    const initializeGraph = (
+        data: any,
+        mode: 'relationships' | 'independent' = 'relationships',
+        graphMode: GraphViewMode = graphViewMode
+    ) => {
         if (!data || !data.graph || !data.graph.nodes) return;
 
         const nodesData: any[] = data.graph.nodes;
         const edgesData: any[] = data.graph.edges || [];
 
-        if (mode === 'relationships') {
-            const incomingCounts: Record<string, number> = {};
-            edgesData.forEach(e => {
-                incomingCounts[e.target] = (incomingCounts[e.target] || 0) + 1;
-            });
+        setRelationshipTotal(nodesData.length);
+        setIndependentTotal(nodesData.length);
 
-            // Find all potential roots (priority to functions with 0 incoming edges)
-            const roots = nodesData.filter(n => n.type === 'function' && !incomingCounts[n.id]);
-            
-            if (roots.length > 0) {
-                const rootNodes = roots.map(r => buildNode(r, 1, edgesData, false));
-                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rootNodes, [], 'LR');
-                setNodes(layoutedNodes);
-                setEdges(layoutedEdges);
-            } else if (nodesData.length > 0) {
-                // Fallback to first available node
-                const root = buildNode(nodesData[0], 1, edgesData, false);
-                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements([root], [], 'LR');
-                setNodes(layoutedNodes);
-                setEdges(layoutedEdges);
+        const isCallableNode = (n: any) => n.type === 'function' || n.type === 'method';
+
+        let workingNodes: any[] = nodesData;
+        let workingEdges: any[] = edgesData;
+
+        // ── PERFORMANCE CAP FOR MASSIVE REPOSITORIES (e.g., Gitea) ──
+        // React Flow creates DOM instances. 14,000 nodes will freeze the webview.
+        const MAX_RENDER_NODES = 600;
+        const degreeCounts: Record<string, number> = {};
+        edgesData.forEach((e: any) => {
+            degreeCounts[e.source] = (degreeCounts[e.source] || 0) + 1;
+            degreeCounts[e.target] = (degreeCounts[e.target] || 0) + 1;
+        });
+        const getNodeScore = (n: any) => (degreeCounts[n.id] || 0) + (n.metadata?.importanceScore || 1);
+
+
+        // ── Early-return branches for function, sequence, and overall ──
+        // These use the RAW entity-level nodes/edges BEFORE any directory aggregation.
+
+        if (graphMode === 'function') {
+            let callableNodes = nodesData.filter(isCallableNode);
+            setRelationshipTotal(callableNodes.length > 0 ? callableNodes.length : nodesData.length);
+            setIndependentTotal(callableNodes.length > 0 ? callableNodes.length : nodesData.length);
+            if (callableNodes.length === 0) {
+                // Fallback: use ALL nodes if no functions/methods found (e.g. Go)
+                const allNodes = nodesData.slice()
+                    .sort((a: any, b: any) => getNodeScore(b) - getNodeScore(a))
+                    .slice(0, MAX_RENDER_NODES);
+                const allIds = new Set(allNodes.map((n: any) => n.id));
+                const allEdges = edgesData.filter((e: any) => allIds.has(e.source) && allIds.has(e.target));
+                const builtNodes = allNodes.map((n: any) => buildNode(n, 1, allEdges, false));
+                const builtEdges: Edge[] = allEdges.map((e: any) => ({
+                    id: `${e.source}->${e.target}`,
+                    source: e.source,
+                    target: e.target,
+                    type: 'default',
+                    animated: true,
+                    style: { stroke: '#7fa6cf', strokeWidth: 1.5, opacity: 0.7 }
+                }));
+                finalizeLayout(builtNodes, builtEdges, 'LR', true);
+                return;
             }
-        } else {
-            // Independent Nodes View
-            const incomingCounts: Record<string, number> = {};
-            const outgoingCounts: Record<string, number> = {};
-            
-            edgesData.forEach(e => {
-                incomingCounts[e.target] = (incomingCounts[e.target] || 0) + 1;
-                outgoingCounts[e.source] = (outgoingCounts[e.source] || 0) + 1;
-            });
+            // Sort and cap to prevent DOM freezing
+            callableNodes = callableNodes
+                .sort((a, b) => getNodeScore(b) - getNodeScore(a))
+                .slice(0, MAX_RENDER_NODES);
 
-            // Truly independent: 0 incoming AND 0 outgoing
-            const independent = nodesData.filter(n => 
-                n.type === 'function' && 
-                !incomingCounts[n.id] && 
-                !outgoingCounts[n.id]
+            const callableIds = new Set(callableNodes.map((n: any) => n.id));
+            const callableEdges = edgesData.filter(
+                (e: any) => callableIds.has(e.source) && callableIds.has(e.target)
+            );
+            const builtNodes = callableNodes.map((n: any) => buildNode(n, 1, callableEdges, false));
+            const builtEdges: Edge[] = callableEdges.map((e: any) => ({
+                id: `${e.source}->${e.target}`,
+                source: e.source,
+                target: e.target,
+                type: 'default',
+                animated: true,
+                style: { stroke: '#7fa6cf', strokeWidth: 1.5, opacity: 0.7 }
+            }));
+            finalizeLayout(builtNodes, builtEdges, 'LR', true);
+            return;
+        }
+
+        if (graphMode === 'sequence') {
+            let candidates = nodesData.filter(isCallableNode);
+            if (candidates.length === 0) candidates = nodesData.slice();
+            setRelationshipTotal(candidates.length);
+            setIndependentTotal(candidates.length);
+            
+            candidates = candidates
+                .sort((a: any, b: any) => getNodeScore(b) - getNodeScore(a))
+                .slice(0, MAX_RENDER_NODES);
+            
+            const candidateIds = new Set(candidates.map((n: any) => n.id));
+            const seqEdges = edgesData.filter(
+                (e: any) => candidateIds.has(e.source) && candidateIds.has(e.target)
             );
 
-            // Limited batch for performance
-            const batch = independent.slice(0, 30);
-            const batchNodes = batch.map(n => buildNode(n, 1, edgesData, false));
-            
-            // Layout in a single vertical column
-            const layoutedNodes = batchNodes.map((n, i) => ({
-                ...n,
-                position: { x: 100, y: i * 150 + 100 }
+            // Topological sort (Kahn's algorithm)
+            const inDeg: Record<string, number> = {};
+            candidates.forEach((n: any) => { inDeg[n.id] = 0; });
+            seqEdges.forEach((e: any) => { inDeg[e.target] = (inDeg[e.target] || 0) + 1; });
+            const queue = candidates.filter((n: any) => (inDeg[n.id] || 0) === 0);
+            const sorted: any[] = [];
+            const visited = new Set<string>();
+            while (queue.length > 0) {
+                const node = queue.shift()!;
+                if (visited.has(node.id)) continue;
+                visited.add(node.id);
+                sorted.push(node);
+                seqEdges.filter((e: any) => e.source === node.id).forEach((e: any) => {
+                    inDeg[e.target] = (inDeg[e.target] || 0) - 1;
+                    const target = candidates.find((n: any) => n.id === e.target);
+                    if (target && (inDeg[e.target] || 0) <= 0 && !visited.has(e.target)) {
+                        queue.push(target);
+                    }
+                });
+            }
+            candidates.forEach((n: any) => { if (!visited.has(n.id)) sorted.push(n); });
+
+            const builtNodes: Node[] = sorted.map((n: any, i: number) => {
+                const node = buildNode(n, 1, seqEdges, false);
+                return {
+                    ...node,
+                    position: { x: 80, y: i * 90 + 40 },
+                    targetPosition: Position.Top,
+                    sourcePosition: Position.Bottom,
+                };
+            });
+            const builtEdges: Edge[] = seqEdges.map((e: any) => ({
+                id: `seq-${e.source}->${e.target}`,
+                source: e.source,
+                target: e.target,
+                type: 'default',
+                animated: true,
+                label: 'calls',
+                labelStyle: { fill: '#8ea4bf', fontSize: 9, fontFamily: 'system-ui' },
+                style: { stroke: '#f59e0b', strokeWidth: 1.5, opacity: 0.7 }
             }));
-            
-            setNodes(layoutedNodes);
-            setEdges([]);
+            setNodes(builtNodes);
+            setEdges(builtEdges);
+            return;
         }
+
+        if (graphMode === 'overall') {
+            setRelationshipTotal(workingNodes.length);
+            setIndependentTotal(workingNodes.length);
+            const cappedNodes = workingNodes
+                .sort((a: any, b: any) => getNodeScore(b) - getNodeScore(a))
+                .slice(0, MAX_RENDER_NODES);
+            const validIds = new Set(cappedNodes.map((n: any) => n.id));
+            
+            // Only use the capped nodes
+            workingNodes = cappedNodes;
+            workingEdges = edgesData.filter((e: any) => validIds.has(e.source) && validIds.has(e.target));
+            // Fall through to directory mode renderer at the end
+        } else {
+            // ── DIRECTORY MODE: aggregate entity nodes into file-level nodes ──
+            const idToNode = new Map<string, any>();
+            for (const node of nodesData) {
+                idToNode.set(node.id, node);
+            }
+
+            const fileMap = new Map<string, { importanceScore: number; complexitySum: number; complexityCount: number; entityCount: number }>();
+            for (const node of nodesData) {
+                const file = String(node.file || '').trim();
+                if (!file) continue;
+                const current = fileMap.get(file) || { importanceScore: 1, complexitySum: 0, complexityCount: 0, entityCount: 0 };
+                const nodeImportance = typeof node.metadata?.importanceScore === 'number' ? node.metadata.importanceScore : 1;
+                const complexity = typeof node.metadata?.complexity === 'number' ? node.metadata.complexity : undefined;
+                current.importanceScore = Math.max(current.importanceScore, nodeImportance);
+                if (complexity !== undefined) { current.complexitySum += complexity; current.complexityCount += 1; }
+                current.entityCount += 1;
+                fileMap.set(file, current);
+            }
+
+            const fileEdgeCount = new Map<string, number>();
+            for (const edge of edgesData) {
+                const srcNode = idToNode.get(edge.source);
+                const dstNode = idToNode.get(edge.target);
+                if (!srcNode || !dstNode || !srcNode.file || !dstNode.file) continue;
+                if (String(srcNode.file) === String(dstNode.file)) continue;
+                const key = `${srcNode.file}=>${dstNode.file}`;
+                fileEdgeCount.set(key, (fileEdgeCount.get(key) || 0) + 1);
+            }
+
+            workingNodes = Array.from(fileMap.entries()).map(([file, stats]) => {
+                const avgComplexity = stats.complexityCount > 0 ? stats.complexitySum / stats.complexityCount : 0;
+                return {
+                    id: `file::${file}`,
+                    name: file.split('/').pop() || file,
+                    type: 'file',
+                    file,
+                    startLine: 1,
+                    endLine: 1,
+                    metadata: { importanceScore: stats.importanceScore, complexity: avgComplexity, entityCount: stats.entityCount }
+                };
+            });
+
+            workingEdges = Array.from(fileEdgeCount.entries()).map(([key, weight]) => {
+                const [sourceFile, targetFile] = key.split('=>');
+                return { source: `file::${sourceFile}`, target: `file::${targetFile}`, type: 'calls', weight };
+            });
+
+            setRelationshipTotal(workingNodes.length);
+            setIndependentTotal(workingNodes.length);
+        }
+
+        const incomingCounts: Record<string, number> = {};
+        const outgoingCounts: Record<string, number> = {};
+        workingEdges.forEach((e: any) => {
+            incomingCounts[e.target] = (incomingCounts[e.target] || 0) + 1;
+            outgoingCounts[e.source] = (outgoingCounts[e.source] || 0) + 1;
+        });
+
+        const getImportance = (node: any): number => {
+            const explicitImportance = typeof node.metadata?.importanceScore === 'number' ? node.metadata.importanceScore : undefined;
+            if (explicitImportance !== undefined) {
+                return explicitImportance;
+            }
+
+            const incoming = incomingCounts[node.id] || 0;
+            const outgoing = outgoingCounts[node.id] || 0;
+            const hasComplexity = typeof node.metadata?.complexity === 'number' ? node.metadata.complexity : 0;
+            return (outgoing * 2) + incoming + (hasComplexity * 0.1);
+        };
+
+        // ── MODE-BASED RENDERING FOR DIRECTORY / OVERALL ──
+        // Cap the number of files to render
+        const cappedFileNodes = workingNodes
+            .sort((a: any, b: any) => getNodeScore(b) - getNodeScore(a))
+            .slice(0, MAX_RENDER_NODES);
+
+        const validIds = new Set(cappedFileNodes.map((n: any) => n.id));
+        const cappedFileEdges = workingEdges.filter((e: any) => validIds.has(e.source) && validIds.has(e.target));
+
+        const allFileNodes = cappedFileNodes.map((n: any) => buildNode(n, 1, cappedFileEdges, false));
+        const allFileEdges: Edge[] = cappedFileEdges.map((e: any) => ({
+            id: `${e.source}->${e.target}`,
+            source: e.source,
+            target: e.target,
+            type: 'default',
+            animated: true,
+            label: String(e.weight || ''),
+            labelStyle: { fill: '#8ea4bf', fontSize: 9 },
+            style: { stroke: '#7fa6cf', strokeWidth: Math.min(e.weight || 1, 3), opacity: 0.7 }
+        }));
+        finalizeLayout(allFileNodes, allFileEdges, 'LR', false);
     };
 
     const handleExpand = (nodeId: string) => {
@@ -252,7 +530,7 @@ const App: React.FC = () => {
                 .filter(n => !descendantIds.has(n.id))
                 .map(n => n.id === nodeId ? { ...n, data: { ...n.data, isExpanded: false } } : n);
             const newEdges = currentEdges.filter(e => !descendantIds.has(e.target) && !descendantIds.has(e.source));
-            const layouted = getLayoutedElements(newNodes, newEdges, 'LR');
+            const layouted = getLayoutedElements(newNodes, newEdges, 'LR', graphViewMode === 'function');
             setNodes(layouted.nodes);
             setEdges(layouted.edges);
             return;
@@ -279,14 +557,14 @@ const App: React.FC = () => {
                 target: childNodeData.id,
                 type: 'default',
                 animated: true,
-                style: { stroke: '#00e5ff', strokeWidth: 2, opacity: 0.8 }
+                style: { stroke: '#7fa6cf', strokeWidth: 2, opacity: 0.8 }
             });
         });
 
         currentNodes[targetNodeIndex] = { ...targetNode, data: { ...targetNode.data, isExpanded: true } };
         const allNodes = [...currentNodes, ...newChildNodes];
         const allEdges = [...currentEdges, ...newReactFlowEdges];
-        const layouted = getLayoutedElements(allNodes, allEdges, 'LR');
+        const layouted = getLayoutedElements(allNodes, allEdges, 'LR', graphViewMode === 'function');
         setNodes(layouted.nodes);
         setEdges(layouted.edges);
     };
@@ -323,7 +601,10 @@ const App: React.FC = () => {
         setChatNode({ id: nodeId, label, file, isMulti: false });
         setIsChatPanelOpen(true);
         setRightSidebarWidth(380);
-        setChatHistory([]);
+        // Don't clear chat history if it's the same node being re-explained
+        if (!chatNode || chatNode.id !== nodeId) {
+            setChatHistory([]);
+        }
         setIsLoadingChat(true);
         
         window.vscode.postMessage({ 
@@ -374,7 +655,7 @@ const App: React.FC = () => {
                 return {
                     ...edge,
                     animated: true,
-                    style: { ...edge.style, stroke: '#ff0066', strokeWidth: 3, opacity: 1, filter: 'drop-shadow(0 0 5px #ff0066)' }
+                    style: { ...edge.style, stroke: '#7fa6cf', strokeWidth: 2.5, opacity: 0.95 }
                 };
             }
             return edge;
@@ -382,6 +663,10 @@ const App: React.FC = () => {
     }, [edges, selectedNodeIds]);
 
     const summaryMarkdown = graphData ? graphData.report : '';
+    const totalForMode = viewMode === 'relationships' ? relationshipTotal : independentTotal;
+    const shownForMode = viewMode === 'relationships'
+        ? Math.min(relationshipLimit, relationshipTotal)
+        : Math.min(independentLimit, independentTotal);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
@@ -412,12 +697,51 @@ const App: React.FC = () => {
                     <div className="view-section">
                         <div className="view-header">
                             <span className="view-label">View</span>
-                            <span className="view-tag">below option are diff view to look at the same codebase</span>
+                            <span className="view-tag">alternate visual modes for the same codebase</span>
                         </div>
                         <div className="view-btn-group">
-                            <button className="view-btn active">Function Graph</button>
-                            <button className="view-btn disabled">Directory Graph</button>
-                            <button className="view-btn disabled">Overall Graph</button>
+                            <button
+                                className={`view-btn ${graphViewMode === 'function' ? 'active' : ''}`}
+                                onClick={() => {
+                                    setGraphViewMode('function');
+                                    setRelationshipLimit(NODE_PAGE_SIZE);
+                                    setIndependentLimit(NODE_PAGE_SIZE);
+                                    if (graphData) initializeGraph(graphData, viewMode, 'function');
+                                }}
+                            >
+                                Function Graph
+                            </button>
+                            <button
+                                className={`view-btn ${graphViewMode === 'directory' ? 'active' : ''}`}
+                                onClick={() => {
+                                    setGraphViewMode('directory');
+                                    setRelationshipLimit(NODE_PAGE_SIZE);
+                                    setIndependentLimit(NODE_PAGE_SIZE);
+                                    if (graphData) initializeGraph(graphData, viewMode, 'directory');
+                                }}
+                            >
+                                Directory Graph
+                            </button>
+                            <button
+                                className={`view-btn ${graphViewMode === 'sequence' ? 'active' : ''}`}
+                                onClick={() => {
+                                    setGraphViewMode('sequence');
+                                    if (graphData) initializeGraph(graphData, viewMode, 'sequence');
+                                }}
+                            >
+                                Sequence
+                            </button>
+                            <button
+                                className={`view-btn ${graphViewMode === 'overall' ? 'active' : ''}`}
+                                onClick={() => {
+                                    setGraphViewMode('overall');
+                                    setRelationshipLimit(NODE_PAGE_SIZE);
+                                    setIndependentLimit(NODE_PAGE_SIZE);
+                                    if (graphData) initializeGraph(graphData, viewMode, 'overall');
+                                }}
+                            >
+                                Overall Graph
+                            </button>
                         </div>
                     </div>
 
@@ -425,18 +749,54 @@ const App: React.FC = () => {
                         <div className="view-header">
                             <span className="view-label">Relationship Mode</span>
                         </div>
-                        <select 
-                            className="view-mode-select"
-                            value={viewMode}
-                            onChange={(e) => {
-                                const newMode = e.target.value as 'relationships' | 'independent';
-                                setViewMode(newMode);
-                                if (graphData) initializeGraph(graphData, newMode);
-                            }}
-                        >
-                            <option value="relationships">Relationship Based Nodes</option>
-                            <option value="independent">Independent Nodes</option>
-                        </select>
+                        {graphViewMode === 'overall' ? (
+                            <>
+                                <div style={{ fontSize: '11px', color: '#8ea4bf', marginBottom: '4px' }}>
+                                    LLM Importance Stringency: {llmLimit === 1 ? 'ALL' : `>= ${llmLimit}/10`}
+                                </div>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="10"
+                                    value={llmLimit}
+                                    style={{ width: '130px', accentColor: '#7fa6cf' }}
+                                    onChange={e => setLlmLimit(parseInt(e.target.value))}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <select 
+                                    className="view-mode-select"
+                                    value={viewMode}
+                                    onChange={(e) => {
+                                        const newMode = e.target.value as 'relationships' | 'independent';
+                                        setViewMode(newMode);
+                                        if (graphData) initializeGraph(graphData, newMode, graphViewMode);
+                                    }}
+                                >
+                                    <option value="relationships">Relationship Based Nodes</option>
+                                    <option value="independent">Independent Nodes</option>
+                                </select>
+                                <div style={{ marginTop: '6px', fontSize: '11px', color: '#8ea4bf' }}>
+                                    Showing {shownForMode} of {totalForMode} nodes
+                                </div>
+                                {shownForMode < totalForMode && (
+                                    <button
+                                        className="view-btn"
+                                        style={{ marginTop: '8px', padding: '6px 10px' }}
+                                        onClick={() => {
+                                            if (viewMode === 'relationships') {
+                                                setRelationshipLimit(prev => prev + NODE_PAGE_SIZE);
+                                            } else {
+                                                setIndependentLimit(prev => prev + NODE_PAGE_SIZE);
+                                            }
+                                        }}
+                                    >
+                                        Load More (+{NODE_PAGE_SIZE})
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </div>
                     <button 
                         className="sidebar-toggle-btn" 
@@ -450,10 +810,10 @@ const App: React.FC = () => {
                             className="view-btn explain-selection-btn"
                             style={{ 
                                 marginLeft: '15px', 
-                                background: 'linear-gradient(135deg, #ff0066 0%, #ff5c93 100%)',
-                                color: 'white',
-                                fontWeight: 'bold',
-                                border: 'none',
+                                background: 'rgba(118, 161, 203, 0.24)',
+                                color: '#dbe8f6',
+                                fontWeight: 600,
+                                border: '1px solid rgba(161, 185, 212, 0.26)',
                                 animation: 'pulse 2s infinite'
                             }}
                             onClick={handleExplainSelection}
@@ -462,9 +822,9 @@ const App: React.FC = () => {
                         </button>
                     )}
                     {selectedNodeIds.length > 0 && (
-                        <div style={{ marginLeft: '10px', fontSize: '11px', color: '#ff0066', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#ff0066', animation: 'pulse 1s infinite' }}></span>
-                            {selectedNodeIds.length} Functions Active
+                        <div style={{ marginLeft: '10px', fontSize: '11px', color: '#8ea4bf', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#7fa6cf', animation: 'pulse 1s infinite' }}></span>
+                            {selectedNodeIds.length} functions selected
                         </div>
                     )}
                 </div>
@@ -483,7 +843,7 @@ const App: React.FC = () => {
                         minWidth: `${sidebarWidth}px`,
                         overflowX: 'hidden',
                         overflowY: 'auto',
-                        background: '#1e1e1e',
+                        background: '#12161d',
                         zIndex: 10,
                         display: 'flex',
                         flexDirection: 'column',
@@ -511,13 +871,25 @@ const App: React.FC = () => {
                 <div
                     title="Resize Left Sidebar"
                     style={{ width: '4px', cursor: 'col-resize', background: '#333', zIndex: 20 }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#0078d4'}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#5f7d9f'}
                     onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
                     onMouseDown={(e) => { e.preventDefault(); isResizing.current = true; }}
                 />
 
                 <div style={{ flex: 1, position: 'relative' }}>
-                    {nodes.length > 0 ? (
+                    {graphViewMode === 'overall' ? (
+                        <VisGraph 
+                            data={graphData} 
+                            llmLimit={llmLimit} 
+                            onNodeSelect={(nodeId) => {
+                                const gNode = graphData?.graph?.nodes?.find((n: any) => n.id === nodeId);
+                                if (gNode) {
+                                    handleExplainFunction(nodeId, gNode.name || gNode.id, gNode.file);
+                                    setSelectedNodeIds([nodeId]);
+                                }
+                            }}
+                        />
+                    ) : nodes.length > 0 ? (
                         <GraphLayout 
                             nodes={nodes} 
                             edges={styledEdges} 
@@ -527,8 +899,12 @@ const App: React.FC = () => {
                         />
 
                     ) : (
-                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#888' }}>
-                            {graphData ? "No entries found in Adjacency List" : "Loading Architecture..."}
+                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#888', textAlign: 'center', maxWidth: '360px' }}>
+                            {graphLoadError
+                                ? graphLoadError
+                                : graphData
+                                    ? "No entries found in Adjacency List"
+                                    : "Loading Architecture..."}
                         </div>
                     )}
                 </div>
@@ -537,7 +913,7 @@ const App: React.FC = () => {
                     <div
                         title="Resize Chat Sidebar"
                         style={{ width: '4px', cursor: 'col-resize', background: '#333', zIndex: 20 }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#ff0066'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#5f7d9f'}
                         onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
                         onMouseDown={(e) => { e.preventDefault(); isResizingRight.current = true; }}
                     />
@@ -550,7 +926,7 @@ const App: React.FC = () => {
                         minWidth: `${rightSidebarWidth}px`,
                         overflowX: 'hidden',
                         overflowY: 'auto',
-                        background: '#1e1e1e',
+                        background: '#12161d',
                         zIndex: 10,
                         display: 'flex',
                         flexDirection: 'column',

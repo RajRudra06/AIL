@@ -29,7 +29,17 @@ export function getPanelHTML(): string {
         }
 
         .landing-brand { text-align: center; }
-        .landing-brand .logo-icon { font-size: 48px; margin-bottom: 14px; display: block; }
+        .landing-brand .logo-icon {
+            font-size: 14px;
+            margin-bottom: 14px;
+            display: inline-block;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #7ca6d3;
+            border: 1px solid rgba(124, 166, 211, 0.3);
+            border-radius: 999px;
+            padding: 5px 12px;
+        }
         .landing-brand h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
         .landing-brand h1 span { background: linear-gradient(135deg, #4a9eff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .landing-brand .tagline { font-size: 13px; color: #858585; margin-top: 8px; max-width: 460px; line-height: 1.6; }
@@ -55,7 +65,17 @@ export function getPanelHTML(): string {
         }
         .action-card:hover:not(.disabled) { border-color: #4a9eff; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(74,158,255,0.08); }
         .action-card.disabled { opacity: 0.35; cursor: not-allowed; }
-        .action-card .card-icon { font-size: 28px; }
+        .action-card .card-icon {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #7ca6d3;
+            border: 1px solid rgba(124, 166, 211, 0.28);
+            border-radius: 999px;
+            width: fit-content;
+            padding: 4px 9px;
+        }
         .action-card h3 { font-size: 15px; font-weight: 600; color: #fff; }
         .action-card p { font-size: 11.5px; color: #858585; line-height: 1.55; flex: 1; }
         .action-card .card-btn {
@@ -184,6 +204,39 @@ export function getPanelHTML(): string {
         .stat-val { font-size: 22px; font-weight: 700; color: #fff; line-height: 1; }
         .stat-label { font-size: 10px; color: #6b6b7b; text-transform: uppercase; margin-top: 5px; letter-spacing: 0.3px; }
 
+        /* ── HIGHLIGHTS STRIP ───────────────────────── */
+        .highlights-card {
+            background: linear-gradient(135deg, #141418 0%, #181a21 100%);
+            border: 1px solid #2d2d35;
+            border-radius: 12px;
+            padding: 16px 18px;
+        }
+        .highlights-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+        .highlights-title { font-size: 13px; font-weight: 700; color: #dbe8f6; text-transform: uppercase; letter-spacing: 0.5px; }
+        .highlights-sub { font-size: 11px; color: #7f90a6; }
+        .highlights-list { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 9px; }
+        .highlight-item {
+            background: #11141c;
+            border: 1px solid rgba(122, 154, 188, 0.26);
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-height: 62px;
+        }
+        .highlight-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 8px; }
+        .highlight-tag {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(74,158,255,0.14);
+            color: #8dc2ff;
+            border: 1px solid rgba(74,158,255,0.35);
+        }
+        .highlight-meta { font-size: 10px; color: #8390a2; white-space: nowrap; }
+        .highlight-text { font-size: 12px; color: #d8e1ec; line-height: 1.45; }
+
         /* ── METRIC CARDS GRID ───────────────────────── */
         .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 
@@ -196,7 +249,18 @@ export function getPanelHTML(): string {
             transition: border-color 0.2s, transform 0.12s, box-shadow 0.2s;
         }
         .metric-card:hover { border-color: #4a9eff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(74,158,255,0.06); }
-        .metric-card .mc-icon { font-size: 24px; margin-bottom: 10px; }
+        .metric-card .mc-icon {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #9fc0e3;
+            margin-bottom: 10px;
+            border: 1px solid rgba(159, 192, 227, 0.24);
+            border-radius: 999px;
+            width: fit-content;
+            padding: 3px 8px;
+        }
         .metric-card .mc-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
         .metric-card .mc-stat { font-size: 12px; color: #4a9eff; font-weight: 600; margin-bottom: 6px; }
         .metric-card .mc-desc { font-size: 11px; color: #6b6b7b; line-height: 1.4; }
@@ -269,20 +333,20 @@ export function getPanelHTML(): string {
 <!-- ═══ LANDING ══════════════════════════════════════ -->
 <div id="landing" class="screen active">
     <div class="landing-brand">
-        <span class="logo-icon">⚡</span>
+        <span class="logo-icon">AIL</span>
         <h1><span>AIL</span> Mission Control</h1>
         <p class="tagline">Architectural Intelligence Layer — analyze codebases with AST parsing, git intelligence, knowledge graphs, and AI-powered insights.</p>
     </div>
     <div id="landing-status" class="landing-status"></div>
     <div class="landing-actions">
         <div class="action-card disabled" id="card-existing" onclick="handleUseExisting()">
-            <div class="card-icon">📂</div>
+            <div class="card-icon">LOAD</div>
             <h3>Use Current Analysis</h3>
             <p>Load your previous analysis results directly. No scanning — just opens the dashboard with existing .ail data.</p>
             <div class="card-btn">Open Dashboard</div>
         </div>
         <div class="action-card" id="card-fresh" onclick="handleRunFresh()">
-            <div class="card-icon">🚀</div>
+            <div class="card-icon">RUN</div>
             <h3>Run Fresh Analysis</h3>
             <p>Purges any existing .ail data and performs a full codebase scan from scratch — files, AST, git history, and knowledge graph.</p>
             <div class="card-btn">Start Fresh</div>
@@ -293,7 +357,7 @@ export function getPanelHTML(): string {
 <!-- ═══ GLASS PROGRESS OVERLAY ═══════════════════════ -->
 <div id="progress-overlay">
     <div class="glass-card">
-        <h2>⚡ Analyzing Repository</h2>
+        <h2>Analyzing Repository</h2>
         <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
         <div class="progress-text" id="prog-text">Preparing...</div>
     </div>
@@ -302,7 +366,7 @@ export function getPanelHTML(): string {
 <!-- ═══ DASHBOARD ════════════════════════════════════ -->
 <div id="dashboard" class="screen">
     <div id="dash-header">
-        <h1>⚡ AIL Mission Control</h1>
+        <h1>AIL Mission Control</h1>
         <div class="actions">
             <button class="btn outline" onclick="goHome()">← Home</button>
             <button class="btn outline" onclick="purgeCache()">Purge Cache</button>
@@ -312,9 +376,18 @@ export function getPanelHTML(): string {
     <div class="dash-content">
         <div id="cards-view">
             <div class="overview-card" id="overview-card"><div class="empty-state">No data</div></div>
+            <div class="highlights-card" id="highlights-card">
+                <div class="highlights-head">
+                    <div class="highlights-title">Repository Highlights</div>
+                    <div class="highlights-sub">Key moments and activity signals</div>
+                </div>
+                <div class="highlights-list" id="highlights-list">
+                    <div class="empty-state">Run analysis to generate highlights.</div>
+                </div>
+            </div>
             <div class="metric-grid" id="metric-grid"></div>
             <div class="chat-panel">
-                <div class="chat-header">🤖 Architecture GraphRAG Agent</div>
+                <div class="chat-header">Architecture GraphRAG Agent</div>
                 <div class="scroll-area" id="chat-history" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                     <div class="chat-bubble ai">Hello! I'm your Architectural Intelligence Agent. Ask me anything about the codebase.</div>
                 </div>
@@ -484,14 +557,116 @@ export function getPanelHTML(): string {
     function statBox(v, l) { return '<div class="stat-box"><div class="stat-val">' + v + '</div><div class="stat-label">' + l + '</div></div>'; }
     function formatSize(kb) { return kb > 1024 ? (kb/1024).toFixed(1)+' MB' : Math.round(kb)+' KB'; }
 
+    function toShortDate(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toISOString().slice(0, 10);
+    }
+
+    function highlightItem(tag, text, meta) {
+        var m = meta ? '<div class="highlight-meta">' + esc(meta) + '</div>' : '<div class="highlight-meta">&nbsp;</div>';
+        return '<div class="highlight-item">'
+            + '<div class="highlight-top"><span class="highlight-tag">' + esc(tag) + '</span>' + m + '</div>'
+            + '<div class="highlight-text">' + esc(text) + '</div>'
+            + '</div>';
+    }
+
+    function renderHighlights() {
+        var listEl = document.getElementById('highlights-list');
+        if (!listEl) return;
+
+        var highlights = [];
+        var l3c = dashData.l3_churn || {};
+        var l3b = dashData.l3_blast || {};
+        var l3p = dashData.l3_coupling || {};
+        var l3k = dashData.l3_commits || {};
+        var l3u = dashData.l3_contributors || {};
+        var l4s = dashData.l4_summary || {};
+
+        var spots = l4s.riskHotspots || [];
+        var critical = spots.filter(function(s) { return s.level === 'critical'; });
+        var high = spots.filter(function(s) { return s.level === 'high'; });
+        if (critical.length > 0 || high.length > 0) {
+            highlights.push({
+                tag: 'Risk',
+                text: critical.length + ' critical and ' + high.length + ' high-risk entities need priority hardening.',
+                meta: spots.length + ' scored nodes'
+            });
+        }
+
+        var commits = l3k.commits || [];
+        if (commits.length > 0) {
+            var latest = commits[0];
+            highlights.push({
+                tag: 'Latest Commit',
+                text: (latest.author || 'Unknown') + ' changed ' + safeNum(latest.filesChanged) + ' files: ' + (latest.message || 'No message'),
+                meta: toShortDate(latest.date)
+            });
+        }
+
+        var highImpact = l3b.highImpactCommits || [];
+        if (highImpact.length > 0) {
+            var topImpact = highImpact[0];
+            highlights.push({
+                tag: 'Blast Radius',
+                text: 'Highest-impact commit touches ' + safeNum(topImpact.blastRadius) + ' files transitively.',
+                meta: (topImpact.hash || '').slice(0, 7) + ' by ' + (topImpact.author || 'unknown')
+            });
+        }
+
+        var hotFiles = l3c.hotFiles || [];
+        if (hotFiles.length > 0) {
+            var firstHot = hotFiles[0];
+            highlights.push({
+                tag: 'Hotspot',
+                text: hotFiles.length + ' files are high-churn. Top volatile file: ' + fname(firstHot.file || 'unknown') + '.',
+                meta: 'focus test coverage'
+            });
+        }
+
+        var strongPairs = l3p.stronglyCoupled || [];
+        if (strongPairs.length > 0) {
+            var pair = strongPairs[0];
+            var pct = Math.round(safeNum(pair.couplingStrength) * 100);
+            highlights.push({
+                tag: 'Coupling',
+                text: fname(pair.fileA) + ' and ' + fname(pair.fileB) + ' co-change at ' + pct + '% strength.',
+                meta: safeNum(pair.coChanges) + ' co-change commits'
+            });
+        }
+
+        var contributors = l3u.contributors || [];
+        if (contributors.length > 0) {
+            var topContributor = contributors[0];
+            highlights.push({
+                tag: 'Ownership',
+                text: 'Top contributor is ' + (topContributor.name || 'Unknown') + ' with ' + safeNum(topContributor.commits) + ' commits.',
+                meta: contributors.length + ' contributors total'
+            });
+        }
+
+        if (highlights.length === 0) {
+            listEl.innerHTML = '<div class="empty-state">No highlight signals yet. Run analysis to populate key moments.</div>';
+            return;
+        }
+
+        highlights = highlights.slice(0, 6);
+        var html = '';
+        for (var i = 0; i < highlights.length; i++) {
+            html += highlightItem(highlights[i].tag, highlights[i].text, highlights[i].meta);
+        }
+        listEl.innerHTML = html;
+    }
+
     /* ── METRIC CARDS ────────────────────────────── */
     var metricDefs = [
-        { id: 'risk',       icon: '🛡️', title: 'Risk Hotspots',       desc: 'Identifies bug-prone code by combining complexity, high churn, and tight coupling into a single RPI score.' },
-        { id: 'complexity', icon: '🧠', title: 'Code Complexity',     desc: 'Highlights functions with excessive branching (Cyclomatic > 10) requiring refactoring for maintainability.' },
-        { id: 'churn',      icon: '⏱️', title: 'File Churn',          desc: 'Reveals structurally volatile files or stale code blocks to track accumulating technical debt.' },
-        { id: 'blast',      icon: '📡', title: 'Blast Radius',        desc: 'Calculates transitive impact across imports, spotting modules that break distant systems when modified.' },
-        { id: 'coupling',   icon: '🪢', title: 'Hidden Coupling',     desc: 'Detects file pairs that frequently change together in Git to expose implicit, undocumented dependencies.' },
-        { id: 'entities',   icon: '🏗️', title: 'Code Entities',       desc: 'Catalogs all parsed structural boundaries (functions, classes) to fuel the semantic knowledge graph.' }
+        { id: 'risk',       icon: 'RK', title: 'Risk Hotspots',       desc: 'Identifies bug-prone code by combining complexity, high churn, and tight coupling into a single RPI score.' },
+        { id: 'complexity', icon: 'CX', title: 'Code Complexity',     desc: 'Highlights functions with excessive branching (Cyclomatic > 10) requiring refactoring for maintainability.' },
+        { id: 'churn',      icon: 'CH', title: 'File Churn',          desc: 'Reveals structurally volatile files or stale code blocks to track accumulating technical debt.' },
+        { id: 'blast',      icon: 'BR', title: 'Blast Radius',        desc: 'Calculates transitive impact across imports, spotting modules that break distant systems when modified.' },
+        { id: 'coupling',   icon: 'CP', title: 'Hidden Coupling',     desc: 'Detects file pairs that frequently change together in Git to expose implicit, undocumented dependencies.' },
+        { id: 'entities',   icon: 'EN', title: 'Code Entities',       desc: 'Catalogs all parsed structural boundaries (functions, classes) to fuel the semantic knowledge graph.' }
     ];
 
 
@@ -611,7 +786,7 @@ export function getPanelHTML(): string {
         else if (id === 'complexity') {
             var l2c = dashData.l2_complexity;
             var fns = (l2c && l2c.functions) || [];
-            h += '<div class="detail-header"><h2>📊 Cyclomatic Complexity</h2>';
+            h += '<div class="detail-header"><h2>Cyclomatic Complexity</h2>';
             h += '<p>Cyclomatic complexity measures the number of independent paths through a function. Values above 10 indicate functions that are harder to test and maintain. Each branch (if, for, while, switch case, catch, ternary, &&, ||) adds one to the count.</p></div>';
             var complex = 0;
             for (var a=0;a<fns.length;a++) { if (fns[a].cyclomatic > 10) complex++; }
@@ -653,7 +828,7 @@ export function getPanelHTML(): string {
         else if (id === 'blast') {
             var l3b = dashData.l3_blast;
             var commits = (l3b && l3b.highImpactCommits) || [];
-            h += '<div class="detail-header"><h2>💥 Blast Radius Analysis</h2>';
+            h += '<div class="detail-header"><h2>Blast Radius Analysis</h2>';
             h += '<p>Blast radius measures how many files are transitively affected when a commit changes a file. It follows the import graph — if file A imports B which imports C, changing C has a blast radius covering A and B. High blast radius commits are risky because a single bug can propagate widely.</p></div>';
             h += '<div class="detail-insights">';
             h += insightChip(safeNum(l3b && l3b.avgBlastRadius).toFixed(1), 'Avg Radius');
@@ -719,7 +894,7 @@ export function getPanelHTML(): string {
             var l1 = dashData.l1_manifest;
             if (!l1) { h += '<div class="empty-state">No Layer 1 metadata found.</div>'; return h; }
             
-            h += '<div class="detail-header"><h2>📊 Repository Metadata</h2>';
+            h += '<div class="detail-header"><h2>Repository Metadata</h2>';
             h += '<p>Detailed analysis from Phase 1 — including language distribution, execution model inference, entry points, and framework detection.</p></div>';
 
             h += '<div class="detail-insights">';
@@ -792,6 +967,7 @@ export function getPanelHTML(): string {
     /* ── RENDER DASHBOARD ────────────────────────── */
     function renderDashboard() {
         renderOverview();
+        renderHighlights();
         renderMetricCards();
         var l4 = dashData.l4_manifest;
         document.getElementById('btn-load-graphs').disabled = !l4;

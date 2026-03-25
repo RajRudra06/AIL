@@ -426,42 +426,46 @@ async function askAzure(query: string, systemPrompt: string, history: ChatMessag
 import { ConfigUtils } from '../../utils/configUtils';
 
 async function askGemini(query: string, systemPrompt: string, history: ChatMessage[], config: vscode.WorkspaceConfiguration): Promise<string> {
-    const apiKey = ConfigUtils.getGroqApiKey('general');
+    const apiKey = ConfigUtils.getGeminiApiKey();
 
     if (!apiKey) {
-        return "Error: Groq API Key missing. Please check your .env file or VSCode settings.";
+        return 'Error: Gemini API key missing. Set GEMINI_API_KEY in .env or configure ail.geminiApiKey.';
     }
 
-    // Use Groq's OpenAI-compatible endpoint with Llama 3.3
-    const model = 'llama-3.3-70b-versatile';
-    const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+    const model = config.get<string>('geminiModel') || 'gemini-2.0-flash';
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-
-    const messages = [
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: query }
+    const contents = [
+        ...history.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+        })),
+        { role: 'user', parts: [{ text: query }] }
     ];
 
     const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: model,
-            messages: messages,
-            temperature: 0.2,
-            max_tokens: 6000
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents,
+            generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 6000
+            }
         })
     });
 
     if (!response.ok) {
         const err = await response.json() as any;
-        return 'Groq API Error: ' + (err.error?.message || response.statusText);
+        return 'Gemini API Error: ' + (err.error?.message || err.message || response.statusText);
     }
 
     const data = await response.json() as any;
-    return data.choices[0].message.content;
+    const content = (data.candidates?.[0]?.content?.parts || [])
+        .map((p: any) => p.text || '')
+        .join('')
+        .trim();
+
+    return content || 'No response from Gemini.';
 }

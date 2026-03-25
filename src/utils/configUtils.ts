@@ -3,55 +3,103 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export class ConfigUtils {
+    private static readWorkspaceEnvVariable(varNames: string[]): string | undefined {
+        const wsFolders = vscode.workspace.workspaceFolders;
+        if (!wsFolders) {
+            return undefined;
+        }
+
+        for (const folder of wsFolders) {
+            const envPath = path.join(folder.uri.fsPath, '.env');
+            if (!fs.existsSync(envPath)) {
+                continue;
+            }
+
+            try {
+                const envContent = fs.readFileSync(envPath, 'utf8');
+                const lines = envContent.split(/\r?\n/);
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine.startsWith('#') || !trimmedLine.includes('=')) {
+                        continue;
+                    }
+
+                    const [key, ...valueParts] = trimmedLine.split('=');
+                    const normalizedKey = key.trim();
+                    if (!varNames.includes(normalizedKey)) {
+                        continue;
+                    }
+
+                    let value = valueParts.join('=').trim();
+                    value = value.split('#')[0].trim();
+                    value = value.replace(/^['"]|['"]$/g, '');
+
+                    if (value) {
+                        return value;
+                    }
+                }
+            } catch (e) {
+                console.error('[ConfigUtils] Error reading .env:', e);
+            }
+        }
+
+        return undefined;
+    }
+
+    private static readProcessEnvVariable(varNames: string[]): string | undefined {
+        for (const name of varNames) {
+            const value = process.env[name];
+            if (value && value.trim() !== '') {
+                return value.trim();
+            }
+        }
+        return undefined;
+    }
+
     /**
      * Resolves the Groq API Key based on priority:
      * 1. Workspace .env files (checks all workspace folders) - SOLE TRUTH
      * 2. process.env (as fallback for environments where .env is pre-loaded)
      */
     public static getGroqApiKey(type: 'general' | 'func' = 'general'): string | undefined {
-        let apiKey: string | undefined;
+        const envVarNames = type === 'func'
+            ? ['FUNC_CHAT_GROQ_API_KEY', 'GROQ_API_KEY']
+            : ['GROQ_API_KEY'];
 
-        // 1. Check ALL Workspace .env files (Primary Truth)
-        const wsFolders = vscode.workspace.workspaceFolders;
-        if (wsFolders) {
-            for (const folder of wsFolders) {
-                const envPath = path.join(folder.uri.fsPath, '.env');
-                if (fs.existsSync(envPath)) {
-                    try {
-                        const envContent = fs.readFileSync(envPath, 'utf8');
-                        const varName = (type === 'func') ? 'FUNC_CHAT_GROQ_API_KEY' : 'GROQ_API_KEY';
-
-                        const lines = envContent.split(/\r?\n/);
-                        for (const line of lines) {
-                            const trimmedLine = line.trim();
-                            if (trimmedLine.startsWith('#') || !trimmedLine.includes('=')) continue;
-
-                            const [key, ...valueParts] = trimmedLine.split('=');
-                            if (key.trim() === varName) {
-                                let value = valueParts.join('=').trim();
-                                value = value.split('#')[0].trim();
-                                value = value.replace(/^['"]|['"]$/g, '');
-                                if (value) {
-                                    apiKey = value;
-                                    break;
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.error("[ConfigUtils] Error reading .env:", e);
-                    }
-                }
-                if (apiKey) break;
-            }
+        const workspaceValue = this.readWorkspaceEnvVariable(envVarNames);
+        if (workspaceValue) {
+            return workspaceValue;
         }
 
-        // 2. Check process.env (Secondary Truth)
-        if (!apiKey) {
-            apiKey = (type === 'func') ? process.env.FUNC_CHAT_GROQ_API_KEY : process.env.GROQ_API_KEY;
+        return this.readProcessEnvVariable(envVarNames);
+    }
+
+    /**
+     * Resolves Gemini API key with the following priority:
+     * 1. Workspace .env values (GEMINI_API_KEY, GOOGLE_API_KEY, AIL_GEMINI_API_KEY)
+     * 2. process.env fallback
+     * 3. VS Code setting ail.geminiApiKey
+     */
+    public static getGeminiApiKey(): string | undefined {
+        const envVarNames = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'AIL_GEMINI_API_KEY'];
+
+        const workspaceValue = this.readWorkspaceEnvVariable(envVarNames);
+        if (workspaceValue) {
+            return workspaceValue;
         }
 
-        // Removed VSCode settings fallback to ensure .env is the absolute source of truth
-        return (apiKey && apiKey.trim() !== '') ? apiKey.trim() : undefined;
+        const processValue = this.readProcessEnvVariable(envVarNames);
+        if (processValue) {
+            return processValue;
+        }
+
+        const settingsValue = vscode.workspace.getConfiguration('ail').get<string>('geminiApiKey');
+        if (settingsValue && settingsValue.trim() !== '') {
+            return settingsValue.trim();
+        }
+
+        return undefined;
     }
 }
 

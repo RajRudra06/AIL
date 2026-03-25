@@ -4,6 +4,7 @@ import './FunctionNode.css';
 
 export interface FunctionNodeData {
     label: string;
+    nodeType?: string;
     file: string;
     startLine: number;
     endLine: number;
@@ -13,6 +14,7 @@ export interface FunctionNodeData {
     onExpand?: (nodeId: string) => void;
     onClick?: (file: string, line: number) => void;
     onExplain?: (nodeId: string, label: string, file: string) => void;
+    metadata?: any;
 }
 
 
@@ -24,16 +26,22 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
     targetPosition = Position.Top 
 }) => {
     
-    // Depth-based neon/glassmorphism colors
+    // Neon-tinted depth palette: smooth, minimal, architectural
     const getDepthColor = (depth: number) => {
-        const colors = [
-            { bg: 'rgba(0, 229, 255, 0.15)', border: '#00e5ff', text: '#ffffff', glow: 'rgba(0, 229, 255, 0.4)' }, // Depth 1: Cyan/Neon Blue
-            { bg: 'rgba(189, 0, 255, 0.15)', border: '#bd00ff', text: '#ffffff', glow: 'rgba(189, 0, 255, 0.4)' }, // Depth 2: Purple/Magenta
-            { bg: 'rgba(255, 0, 102, 0.15)', border: '#ff0066', text: '#ffffff', glow: 'rgba(255, 0, 102, 0.4)' }, // Depth 3: Pink/Red
-            { bg: 'rgba(255, 171, 0, 0.15)', border: '#ffab00', text: '#ffffff', glow: 'rgba(255, 171, 0, 0.4)' },   // Depth 4: Amber/Gold
-            { bg: 'rgba(0, 255, 136, 0.15)', border: '#00ff88', text: '#ffffff', glow: 'rgba(0, 255, 136, 0.4)' }, // Depth 5+: Neon Green
-        ];
-        return colors[Math.min(depth - 1, colors.length - 1)];
+        const file = String(data.file || '').toLowerCase();
+        // Classify by architectural lane for consistent visual identity
+        if (file.includes('webview') || file.includes('panel/') || file.includes('view') || 
+            file.endsWith('.tsx') || file.endsWith('.jsx') || file.includes('ui.') || file.includes('render')) {
+            // View / UI — Electric Blue
+            return { bg: 'rgba(56, 189, 248, 0.12)', border: '#38bdf8', text: '#e0f2fe', glow: 'rgba(56, 189, 248, 0.18)' };
+        }
+        if (file.includes('util') || file.includes('helper') || file.includes('config') ||
+            file.includes('mock') || file.includes('db') || file.includes('service') || file.includes('adapter')) {
+            // Utility / I-O — Neon Emerald
+            return { bg: 'rgba(52, 211, 153, 0.12)', border: '#34d399', text: '#d1fae5', glow: 'rgba(52, 211, 153, 0.18)' };
+        }
+        // Controller / Logic — Soft Violet
+        return { bg: 'rgba(167, 139, 250, 0.12)', border: '#a78bfa', text: '#ede9fe', glow: 'rgba(167, 139, 250, 0.18)' };
     };
 
     const colors = getDepthColor(data.depth || 1);
@@ -45,7 +53,7 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
                 backgroundColor: colors.bg, 
                 borderColor: colors.border,
                 color: colors.text,
-                boxShadow: `0 4px 12px ${colors.glow}, inset 0 0 8px ${colors.glow}`
+                boxShadow: `0 4px 10px rgba(5, 9, 14, 0.25), inset 0 0 0 1px ${colors.glow}`
             }}
         >
 
@@ -91,8 +99,17 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
             {/* Native CSS Tooltip for pure hover support without JS state */}
             <div className="node-tooltip">
                 <div className="tooltip-row"><strong>File:</strong> <span>{data.file.split('/').pop()}</span></div>
-                <div className="tooltip-row"><strong>Lines:</strong> <span>{data.startLine} - {data.endLine}</span></div>
-                <div className="tooltip-row"><strong>Length:</strong> <span>{data.endLine - data.startLine} lines</span></div>
+                {data.nodeType === 'file' ? (
+                    <>
+                        <div className="tooltip-row"><strong>Entities:</strong> <span>{data.metadata?.entityCount || 0}</span></div>
+                        <div className="tooltip-row"><strong>Avg Complexity:</strong> <span>{Math.round(data.metadata?.complexity || 0)}</span></div>
+                    </>
+                ) : (
+                    <>
+                        <div className="tooltip-row"><strong>Lines:</strong> <span>{data.startLine} - {data.endLine}</span></div>
+                        <div className="tooltip-row"><strong>Length:</strong> <span>{data.endLine > 0 ? (data.endLine - data.startLine + 1) : 0} lines</span></div>
+                    </>
+                )}
             </div>
         </div>
     );

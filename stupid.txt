@@ -1,0 +1,91 @@
+localProcessExtensionHost.ts:351 [Extension Host] STOPPED on first line for debugging on port 53529
+_tryFindDebugPort @ localProcessExtensionHost.ts:351
+log.ts:440  INFO Started local extension host with pid 222958.
+log.ts:440  INFO Loading development extension at /home/meow/Desktop/rudraail/AIL_updated
+log.ts:440  INFO [ChatSessionsService] registerContribution called for type='claude-code', canDelegate=true, when='config.github.copilot.chat.claudeAgent.enabled', extension='GitHub.copilot-chat'
+log.ts:440  INFO [ChatSessionsService] _enableContribution: type='claude-code', canDelegate=true
+log.ts:440  INFO [ChatSessionsService] registerContribution called for type='copilotcli', canDelegate=true, when='config.github.copilot.chat.backgroundAgent.enabled', extension='GitHub.copilot-chat'
+log.ts:440  INFO [ChatSessionsService] _enableContribution: type='copilotcli', canDelegate=true
+log.ts:440  INFO [ChatSessionsService] registerContribution called for type='copilot-cloud-agent', canDelegate=true, when='config.github.copilot.chat.cloudAgent.enabled', extension='GitHub.copilot-chat'
+log.ts:440  INFO [ChatSessionsService] _enableContribution: type='copilot-cloud-agent', canDelegate=true
+log.ts:440  INFO MCP Registry configured: https://api.mcp.github.com
+log.ts:440  INFO Settings Sync: Account status changed from uninitialized to unavailable
+log.ts:440  INFO [perf] Render performance baseline is 65ms
+log.ts:460   ERR [Extension Host] (node:222958) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `exe --trace-deprecation ...` to show where the warning was created)
+error @ log.ts:460
+console.ts:139 [Extension Host] (node:222958) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `exe --trace-deprecation ...` to show where the warning was created) (at file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408)
+_Ji @ console.ts:139
+log.ts:460   ERR [Extension Host] (node:222958) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+error @ log.ts:460
+console.ts:139 [Extension Host] (node:222958) ExperimentalWarning: SQLite is an experimental feature and might change at any time (at file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408)
+_Ji @ console.ts:139
+console.ts:139 [Extension Host] AIL Extension is now active! (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+webviewElement.ts:411 Unrecognized feature: 'local-network-access'.
+_createElement @ webviewElement.ts:411
+webviewElement.ts:491 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+mountTo @ webviewElement.ts:491
+index.html?id=43992e17-9e52-42b6-bb83-58978a085692&parentId=16&origin=9bab6f6a-6c58-4820-9a44-dd8cc0f6ac5a&swVersion=4&extensionId=undefined_publisher.ail-extension&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app:1060 Unrecognized feature: 'local-network-access'.
+(anonymous) @ index.html?id=43992e17-9e52-42b6-bb83-58978a085692&parentId=16&origin=9bab6f6a-6c58-4820-9a44-dd8cc0f6ac5a&swVersion=4&extensionId=undefined_publisher.ail-extension&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app:1060
+console.ts:139 [Extension Host] [AIL-EXT] Received message from webview: requestData (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+log.ts:440  INFO Extension host (LocalProcess pid: 222958) is unresponsive.
+localProcessExtensionHost.ts:281 Extension Host
+localProcessExtensionHost.ts:282 Debugger attached.
+log.ts:440  INFO UNRESPONSIVE extension host: starting to profile NOW
+log.ts:440  INFO Extension host (LocalProcess pid: 222958) is responsive.
+log.ts:440  INFO UNRESPONSIVE extension host: received responsive event and cancelling profiling session
+console.ts:139 [Extension Host] ApplicationInsights:Sender Array(2) (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+_Ji @ console.ts:139
+TMScopeRegistry.ts:46 Overwriting grammar scope name to file mapping for scope source.python.
+Old grammar file: file:///opt/visual-studio-code/resources/app/extensions/python/syntaxes/MagicPython.tmLanguage.json.
+New grammar file: file:///home/meow/.vscode/extensions/ms-python.vscode-pylance-2026.1.1/grammars/PylancePython.tmLanguage
+register @ TMScopeRegistry.ts:46
+console.ts:139 [Extension Host] [AIL-EXT] Received message from webview: runFreshAnalysis (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP1 | Saved workspace_directory.json (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP2 | Found 5819 files | Saved analysis/file_scan.json (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP3 | Primary: Go | 3 languages found (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP4 | Found 5 frameworks | Sources: gitea/package.json (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP5 | Found 23 entry points | Primary: gitea/web_src/js/features/code-frequency.ts (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP6 | 472630 total lines | 14591.14 KB | Largest: gitea/modules/emoji/emoji_data.go (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP7 | Model: Web Service (medium) | Tags: Web Service, Frontend App (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP8 | Direct: 380 | Transitive: 0 | Manifests: pyproject.toml, package.json, go.mod (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP9 | Max depth: 1 | Avg: 1 | Risk: low (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP10 | meta-data.json assembled → .ail/layer1/meta-data.json (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP11 | ✓ Layer 1 complete · Language: Go 93.3%, TypeScript 6.6%, JavaScript 0% · Frameworks: vue, webpack, vitest, @playwright/test, tailwindcss · Entry point: gitea/web_src/js/features/code-frequency.ts · Total LOC: 472,630 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP1 | Loaded grammar for: Go (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP1 | Loaded grammar for: TypeScript (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP1 | Loaded grammar for: JavaScript (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+log.ts:440  INFO Extension host (LocalProcess pid: 222958) is unresponsive.
+localProcessExtensionHost.ts:281 Extension Host
+localProcessExtensionHost.ts:282 Debugger attached.
+log.ts:440  INFO UNRESPONSIVE extension host: starting to profile NOW
+log.ts:450  WARN UNRESPONSIVE extension host: 'undefined_publisher.ail-extension' took 25.73571613567473% of 1287.807ms, saved PROFILE here: 'file:///tmp/exthost-d3266d.cpuprofile'
+warn @ log.ts:450
+console.ts:139 [Extension Host] AIL Layer 2 | Parsed 1000 / 5819 ... (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL Layer 2 | Parsed 2000 / 5819 ... (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL Layer 2 | Parsed 3000 / 5819 ... (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP7 | Layer 2 meta-data.json assembled → .ail/layer2/meta-data.json (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL CP8 | ✓ Layer 2 complete · 18131 entities · 78863 call edges · 745 imports · 1 relationships · Avg complexity: 3.5 · ⚠ 884 complex functions (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3 | Found 1 Git repositories: Array(1) (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP1 | 200 commits | 2026-02-09 → 2026-03-25 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP2 | 1772 contributors | Top: GiteaBot (3275 commits) (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP3 | 1655 files analyzed | 165 hot | 0 stale (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP4 | 8720 file pairs analyzed | 115 strongly coupled (>50%) (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP5 | 100 commits | avg blast radius: 11.4 | max: 159 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP6 | Layer 3 meta-data.json assembled (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L3-CP7 | ✓ Layer 3 complete · 200 commits · 1772 contributors · 165 hot files · 50 coupled pairs · avg blast radius: 11.4 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L4-CP1 | Graph: 39868 nodes, 97740 edges (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L4-CP2 | Architecture summary generated (3474 chars) (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L4-CP3 | Layer 4 meta-data.json assembled (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] AIL L4-CP4 | ✓ AIL Pipeline Complete! · 39868 graph nodes · 97740 edges · 18131 entities ·  (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+log.ts:440  INFO Extension host (LocalProcess pid: 222958) is responsive.
+console.ts:139 [Extension Host] [AIL-EXT] Received message from webview: loadGraphs (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+webviewElement.ts:491 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+mountTo @ webviewElement.ts:491
+console.ts:139 [Extension Host] [AIL] Graph payload → nodes: 1200 / 18131, edges: 6000 / 55677 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] [AIL] Graph payload → nodes: 1200 / 18131, edges: 6000 / 55677 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] [AIL] Graph payload → nodes: 1200 / 18131, edges: 6000 / 55677 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] [AIL] Graph payload → nodes: 1200 / 18131, edges: 6000 / 55677 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+console.ts:139 [Extension Host] [AIL] Graph payload → nodes: 1200 / 18131, edges: 6000 / 55677 (at console.<anonymous> (file:///opt/visual-studio-code/resources/app/out/vs/workbench/api/node/extensionHostProcess.js:620:31408))
+webviewCommands.ts:33 Using standard dev tools to debug iframe based webview

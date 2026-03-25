@@ -8,6 +8,8 @@ interface SummaryPanelProps {
 export const SummaryPanel: React.FC<SummaryPanelProps> = ({ 
     markdown
 }) => {
+    const [isCompact, setIsCompact] = useState(true);
+
     if (!markdown || markdown === '<LOADING>') {
 
         return (
@@ -86,10 +88,22 @@ export const SummaryPanel: React.FC<SummaryPanelProps> = ({
 
     flushSegment();
 
+    const compactSegments = segments.slice(0, 3);
+    const visibleSegments = isCompact ? compactSegments : segments;
+    const hasMore = segments.length > compactSegments.length;
+
     return (
         <div className="summary-panel">
             <h2 className="panel-title">Repository Architecture</h2>
-            {segments}
+            {visibleSegments}
+            {hasMore && (
+                <button
+                    className="summary-toggle-btn"
+                    onClick={() => setIsCompact(prev => !prev)}
+                >
+                    {isCompact ? `Show More (${segments.length - compactSegments.length} sections)` : 'Show Less'}
+                </button>
+            )}
         </div>
     );
 };

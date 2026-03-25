@@ -72,7 +72,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <div className="chat-panel">
             <div className="chat-header">
                 <div className="header-info">
-                    <span className="header-icon">🤖</span>
                     <div className="header-text">
                         <span className="header-title">AIL Explainer</span>
                         <span className="header-subtitle">

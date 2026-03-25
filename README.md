@@ -2,6 +2,16 @@
 
 AIL is an advanced VS Code Extension designed to automatically ingest, parse, and analyze massive code repositories, outputting a highly structured, unified **Knowledge Graph** of the entire codebase architecture. It includes an integrated AI **GraphRAG Assistant** to answer technical architectural questions with implementation-level precision.
 
+## Recent Updates (March 2026)
+
+- Added **Repository Highlights** in Mission Control to summarize key repo activity and risk moments at a glance.
+- Hardened Graph View delivery for very large repositories with:
+   - pre-send payload pruning,
+   - webview ready/ack handshake,
+   - retry-based graph fetch,
+   - dense-graph fast layout fallback.
+- Improved graph UX with clear error messages and corrected node count telemetry in the toolbar.
+
 ## The 4-Layer Intelligence Pipeline
 
 AIL processes your workspace through a deterministic multi-layer pipeline:
@@ -54,7 +64,10 @@ AIL supports both Azure OpenAI and Google Gemini.
 2. Search for **AIL**.
 3. **For Google Gemini:**
    - Set `Ai Provider` to `gemini`.
-   - Enter your `Gemini Api Key`.
+   - Enter your `Gemini Api Key` in settings (`ail.geminiApiKey`) OR define one of these in your workspace `.env`:
+     - `GEMINI_API_KEY`
+     - `GOOGLE_API_KEY`
+     - `AIL_GEMINI_API_KEY`
    - Select `Gemini Model` (e.g., `gemini-2.0-flash`).
 4. **For Azure OpenAI:**
    - Set `Ai Provider` to `azure`.

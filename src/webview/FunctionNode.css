@@ -8,17 +8,17 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(12px);
     cursor: pointer;
     position: relative;
     transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .function-node:hover {
-    transform: translateY(-4px) scale(1.02);
-    filter: brightness(1.2);
+    transform: translateY(-2px);
+    filter: brightness(1.06);
 }
 
 .node-content {
@@ -44,9 +44,9 @@
     right: -24px;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(0, 229, 255, 0.5);
-    color: #00e5ff;
+    background: rgba(14, 20, 28, 0.9);
+    border: 1px solid rgba(150, 172, 198, 0.35);
+    color: #b7c8dc;
     border-radius: 50%;
     width: 20px;
     height: 20px;
@@ -62,19 +62,19 @@
 }
 
 .expand-btn:hover {
-    background: rgba(0, 229, 255, 0.2);
-    box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
-    transform: translateY(-50%) scale(1.15);
+    background: rgba(38, 49, 64, 0.95);
+    box-shadow: 0 3px 10px rgba(6, 10, 16, 0.35);
+    transform: translateY(-50%) scale(1.08);
 }
 
 .expand-btn.expanded {
-    background: rgba(255, 0, 102, 0.1);
-    color: #ff0066;
-    border-color: rgba(255, 0, 102, 0.4);
+    background: rgba(143, 174, 206, 0.18);
+    color: #d6e7fa;
+    border-color: rgba(150, 172, 198, 0.45);
 }
 
 .expand-btn.expanded:hover {
-    box-shadow: 0 0 8px rgba(255, 0, 102, 0.6);
+    box-shadow: 0 3px 10px rgba(6, 10, 16, 0.35);
 }
 
 /* Tooltip implementation */
@@ -126,7 +126,7 @@
 }
 
 .tooltip-row strong {
-    color: #4ec9b0;
+    color: #9bb0c7;
     font-weight: 500;
 }
 
@@ -138,9 +138,9 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #1e1e1e;
-    border: 1px solid rgba(0, 229, 255, 0.6);
-    color: #00e5ff;
+    background: #151b23;
+    border: 1px solid rgba(145, 168, 194, 0.55);
+    color: #c6d6e9;
     font-size: 11px;
     font-family: 'Georgia', serif; /* For a nice 'i' serif */
     font-style: italic;
@@ -149,7 +149,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+    box-shadow: 0 3px 10px rgba(6, 10, 16, 0.35);
     transition: all 0.2s ease;
     z-index: 15;
     opacity: 0;
@@ -162,17 +162,17 @@
 }
 
 .info-btn:hover {
-    background: #00e5ff;
-    color: #000;
-    box-shadow: 0 0 15px rgba(0, 229, 255, 0.8);
-    transform: scale(1.2);
+    background: #2b3a4d;
+    color: #edf4fd;
+    box-shadow: 0 3px 12px rgba(6, 10, 16, 0.42);
+    transform: scale(1.1);
 }
 
 .function-node.selected {
-    border-color: #ff0066 !important;
-    box-shadow: 0 0 20px rgba(255, 0, 102, 0.4), inset 0 0 10px rgba(255, 0, 102, 0.2);
-    background: rgba(255, 0, 102, 0.05);
-    transform: scale(1.05);
+    border-color: #9bb8d7 !important;
+    box-shadow: 0 0 0 1px rgba(155, 184, 215, 0.45), 0 6px 14px rgba(6, 10, 16, 0.35);
+    background: rgba(103, 132, 164, 0.16);
+    transform: scale(1.02);
 }
 
 .function-node.selected::after {
@@ -183,10 +183,10 @@
     transform: translateX(-50%);
     font-size: 8px;
     font-weight: 800;
-    color: #ff0066;
+    color: #c9daee;
     letter-spacing: 1px;
     background: rgba(30, 30, 30, 0.8);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(255, 0, 102, 0.3);
+    border: 1px solid rgba(155, 184, 215, 0.32);
 }

@@ -6,6 +6,81 @@ import { ConfigUtils } from '../utils/configUtils';
 export class GraphPanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
 
+    private static pruneGraphForWebview(rawGraph: any, maxNodes = 1200, maxEdges = 6000): any {
+        if (!rawGraph || !Array.isArray(rawGraph.nodes) || !Array.isArray(rawGraph.edges)) {
+            return rawGraph;
+        }
+
+        const originalNodeCount = rawGraph.nodes.length;
+        const originalEdgeCount = rawGraph.edges.length;
+
+        if (originalNodeCount <= maxNodes && originalEdgeCount <= maxEdges) {
+            return {
+                ...rawGraph,
+                stats: {
+                    ...(rawGraph.stats || {}),
+                    totalNodes: originalNodeCount,
+                    totalEdges: originalEdgeCount,
+                    renderedNodes: originalNodeCount,
+                    renderedEdges: originalEdgeCount,
+                    wasPruned: false,
+                }
+            };
+        }
+
+        const degree: Record<string, number> = {};
+        for (const edge of rawGraph.edges) {
+            const source = String(edge.source || '');
+            const target = String(edge.target || '');
+            if (!source || !target) { continue; }
+            degree[source] = (degree[source] || 0) + 1;
+            degree[target] = (degree[target] || 0) + 1;
+        }
+
+        const nodeScore = (node: any) => {
+            const structural = degree[node.id] || 0;
+            const importance = typeof node.metadata?.importanceScore === 'number' ? node.metadata.importanceScore : 0;
+            const complexity = typeof node.metadata?.complexity === 'number' ? node.metadata.complexity : 0;
+            return (structural * 2) + importance + (complexity * 0.3);
+        };
+
+        const scoreById = new Map<string, number>();
+        for (const node of rawGraph.nodes) {
+            scoreById.set(node.id, nodeScore(node));
+        }
+
+        const selectedNodes = [...rawGraph.nodes]
+            .sort((a: any, b: any) => nodeScore(b) - nodeScore(a))
+            .slice(0, maxNodes);
+
+        const selectedIds = new Set(selectedNodes.map((n: any) => n.id));
+
+        const edgeScore = (edge: any) => {
+            const srcScore = scoreById.get(edge.source) || 0;
+            const dstScore = scoreById.get(edge.target) || 0;
+            return srcScore + dstScore;
+        };
+
+        const selectedEdges = rawGraph.edges
+            .filter((e: any) => selectedIds.has(e.source) && selectedIds.has(e.target))
+            .sort((a: any, b: any) => edgeScore(b) - edgeScore(a))
+            .slice(0, maxEdges);
+
+        return {
+            ...rawGraph,
+            nodes: selectedNodes,
+            edges: selectedEdges,
+            stats: {
+                ...(rawGraph.stats || {}),
+                totalNodes: originalNodeCount,
+                totalEdges: originalEdgeCount,
+                renderedNodes: selectedNodes.length,
+                renderedEdges: selectedEdges.length,
+                wasPruned: true,
+            }
+        };
+    }
+
 
     public static createOrShow(context: vscode.ExtensionContext, workspacePath: string) {
         const column = vscode.ViewColumn.Beside;
@@ -55,6 +130,10 @@ export class GraphPanelManager {
                         }, 1000);
                     } else if (message.command === 'getGraph') {
                         await GraphPanelManager.sendGraphData(panel, workspacePath);
+                    } else if (message.command === 'graphWebviewReady') {
+                        await GraphPanelManager.sendGraphData(panel, workspacePath);
+                    } else if (message.command === 'graphDataAck') {
+                        console.log(`[AIL] Graph webview ACK received → nodes: ${message.nodes || 0}, edges: ${message.edges || 0}`);
                     } else if (message.command === 'getRepoMetadata') {
                         await GraphPanelManager.sendRepoMetadata(panel, workspacePath);
                     } else if (message.command === 'explainFunction') {
@@ -139,7 +218,7 @@ export class GraphPanelManager {
                     Use a content security policy to only allow loading images from https or from our extension directory,
                     and only allow scripts that have a specific nonce.
                 -->
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' https://unpkg.com 'unsafe-eval'; img-src 'self' data: https:;">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>AIL Architecture Explorer</title>
                 <link rel="stylesheet" href="${styleUri}">
@@ -182,32 +261,142 @@ export class GraphPanelManager {
         try {
             const entitiesPath = path.join(ailRoot, 'layer2', 'analysis', 'entities.json');
             const callGraphPath = path.join(ailRoot, 'layer2', 'analysis', 'call_graph.json');
+            const complexityPath = path.join(ailRoot, 'layer2', 'analysis', 'complexity.json');
+            const churnPath = path.join(ailRoot, 'layer3', 'analysis', 'file_churn.json');
             
             if (fs.existsSync(entitiesPath) && fs.existsSync(callGraphPath)) {
                 // Parse layer 2 metadata for precise caller -> callee mappings
                 const entitiesData = JSON.parse(fs.readFileSync(entitiesPath, 'utf-8'));
                 const callGraphData = JSON.parse(fs.readFileSync(callGraphPath, 'utf-8'));
+
+                const complexityData = fs.existsSync(complexityPath)
+                    ? JSON.parse(fs.readFileSync(complexityPath, 'utf-8'))
+                    : { functions: [] };
+                const churnData = fs.existsSync(churnPath)
+                    ? JSON.parse(fs.readFileSync(churnPath, 'utf-8'))
+                    : { files: [] };
+
+                const complexityByEntity = new Map<string, any>();
+                for (const fn of (complexityData.functions || [])) {
+                    const entityKey = `${fn.file}::${fn.entityName}`;
+                    complexityByEntity.set(entityKey, fn);
+                }
+
+                const churnByFile = new Map<string, any>();
+                for (const fileChurn of (churnData.files || [])) {
+                    churnByFile.set(fileChurn.file, fileChurn);
+                }
                 
-                const mappedNodes = (entitiesData.entities || []).map((ent: any) => ({
+                const mappedNodes = (entitiesData.entities || []).map((ent: any) => {
+                    const entityKey = `${ent.file}::${ent.name}`;
+                    const complexityInfo = complexityByEntity.get(entityKey);
+                    const churnInfo = churnByFile.get(ent.file);
+
+                    return {
                     id: `${ent.file}::${ent.name}`,
                     name: ent.name,
                     type: ent.type || 'function',
                     file: ent.file,
                     startLine: ent.startLine,
                     endLine: ent.endLine,
-                    language: ent.language
-                }));
+                    language: ent.language,
+                    metadata: {
+                        complexity: complexityInfo?.cyclomatic,
+                        nestingDepth: complexityInfo?.nestingDepth,
+                        churnScore: churnInfo?.churnScore,
+                        commits: churnInfo?.commits,
+                        isHot: churnInfo?.isHot,
+                        isStale: churnInfo?.isStale,
+                        lineCount: complexityInfo?.lineCount
+                    }
+                    };
+                });
+
+                const nodeById = new Map<string, any>();
+                const nodeIdsByShortName = new Map<string, string[]>();
+                for (const node of mappedNodes) {
+                    nodeById.set(node.id, node);
+                    const shortName = String(node.name || '').trim();
+                    if (!shortName) { continue; }
+                    const existing = nodeIdsByShortName.get(shortName) || [];
+                    existing.push(node.id);
+                    nodeIdsByShortName.set(shortName, existing);
+                }
+
+                const resolveCalleeId = (edge: any): string | undefined => {
+                    const rawCallee = String(edge.callee || '').trim();
+                    if (!rawCallee) {
+                        return undefined;
+                    }
+
+                    // Already qualified from parser (file::symbol)
+                    if (rawCallee.includes('::') && nodeById.has(rawCallee)) {
+                        return rawCallee;
+                    }
+
+                    // Method or dotted call: foo.bar -> resolve by last segment
+                    const shortName = rawCallee.split('.').pop() || rawCallee;
+                    const candidates = nodeIdsByShortName.get(shortName) || [];
+                    if (candidates.length === 0) {
+                        return undefined;
+                    }
+
+                    // Prefer same-file callee if available
+                    const sameFile = candidates.find(id => id.startsWith(`${edge.file}::`));
+                    if (sameFile) {
+                        return sameFile;
+                    }
+
+                    // Otherwise pick deterministic first candidate
+                    return candidates[0];
+                };
                 
-                const mappedEdges = (callGraphData.edges || []).map((edge: any) => ({
-                    source: edge.caller, 
-                    target: edge.callee, 
-                    type: 'calls',
-                    file: edge.file,
-                    line: edge.line
+                const mappedEdges = (callGraphData.edges || [])
+                    .map((edge: any) => {
+                        const sourceId = String(edge.caller || '').trim();
+                        const targetId = resolveCalleeId(edge);
+                        if (!sourceId || !targetId || !nodeById.has(sourceId) || !nodeById.has(targetId)) {
+                            return null;
+                        }
+
+                        return {
+                            source: sourceId,
+                            target: targetId,
+                            type: 'calls',
+                            file: edge.file,
+                            line: edge.line
+                        };
+                    })
+                    .filter((edge: any) => edge !== null);
+
+                const incomingCounts: Record<string, number> = {};
+                const outgoingCounts: Record<string, number> = {};
+                for (const edge of mappedEdges) {
+                    incomingCounts[edge.target] = (incomingCounts[edge.target] || 0) + 1;
+                    outgoingCounts[edge.source] = (outgoingCounts[edge.source] || 0) + 1;
+                }
+
+                const scoreImportance = (node: any): number => {
+                    const incoming = incomingCounts[node.id] || 0;
+                    const outgoing = outgoingCounts[node.id] || 0;
+                    const complexity = typeof node.metadata?.complexity === 'number' ? node.metadata.complexity : 0;
+                    const churnScore = typeof node.metadata?.churnScore === 'number' ? node.metadata.churnScore : 0;
+                    const isHotBonus = node.metadata?.isHot ? 2 : 0;
+                    const structural = (outgoing * 2) + incoming;
+                    const score = structural + (complexity * 0.6) + (Math.log10(churnScore + 1) * 2) + isHotBonus;
+                    return Math.max(1, Math.min(10, Math.round(score)));
+                };
+
+                const nodesWithImportance = mappedNodes.map((node: any) => ({
+                    ...node,
+                    metadata: {
+                        ...node.metadata,
+                        importanceScore: scoreImportance(node)
+                    }
                 }));
 
                 graphData = {
-                    nodes: mappedNodes,
+                    nodes: nodesWithImportance,
                     edges: mappedEdges
                 };
             } else {
@@ -230,11 +419,20 @@ export class GraphPanelManager {
             console.error('[AIL] Error reading graph data:', err);
         }
 
+        const graphForWebview = graphData
+            ? GraphPanelManager.pruneGraphForWebview(graphData)
+            : null;
+
+        console.log(
+            `[AIL] Graph payload → nodes: ${graphForWebview?.nodes?.length || 0} / ${graphData?.nodes?.length || 0}, ` +
+            `edges: ${graphForWebview?.edges?.length || 0} / ${graphData?.edges?.length || 0}`
+        );
+
         // Send initial data to webview so graph renders instantly
         GraphPanelManager.currentPanel.webview.postMessage({
             command: 'loadGraphData',
             data: {
-                graph: graphData,
+                graph: graphForWebview,
                 coupling: couplingData,
             }
         });
@@ -252,7 +450,7 @@ export class GraphPanelManager {
                     GraphPanelManager.currentPanel.webview.postMessage({
                         command: 'loadGraphData',
                         data: {
-                            graph: graphData,
+                            graph: graphForWebview,
                             coupling: couplingData,
                             report: llmSummary
                         }
@@ -263,7 +461,7 @@ export class GraphPanelManager {
                     GraphPanelManager.currentPanel.webview.postMessage({
                         command: 'loadGraphData',
                         data: {
-                            graph: graphData,
+                            graph: graphForWebview,
                             coupling: couplingData,
                             report: `> **LLM Summary Failed**\n\nCould not generate the English summary. Check your API Keys in settings.\n\nError: ${e.message}\n\nFalling back to default overview:\n\n${summaryData.overview}`
                         }
@@ -274,7 +472,7 @@ export class GraphPanelManager {
     }
     private static async generateLLMSummary(summary: any): Promise<string> {
         const config = vscode.workspace.getConfiguration('ail');
-        const provider = config.get<string>('aiProvider') || 'gemini';
+        const provider = config.get<string>('aiProvider') || 'azure';
         
         const rawStats = `
         Project Overview: ${summary.overview || 'N/A'}
@@ -306,34 +504,41 @@ In 2-3 concise bullet points, summarize how the repository is organized and the 
 ### 4. Dashboard Properties Analysis
 For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Complexity, File Churn, Blast Radius, Hidden Coupling), provide exactly ONE highly insightful bullet point explaining what it means for the maintainability of THIS specific project. Do NOT just list the raw stats.`;
 
-        if (provider === 'groq' || provider === 'gemini') {
-            let apiKey = ConfigUtils.getGroqApiKey('general');
-            
-            if (!apiKey || apiKey.trim() === '') {
-                throw new Error('Groq API Key missing. Please set it in your workspace .env file (GROQ_API_KEY).');
+        if (provider === 'gemini') {
+            const apiKey = ConfigUtils.getGeminiApiKey();
+            if (!apiKey) {
+                throw new Error('Gemini API key missing. Set GEMINI_API_KEY in .env or configure ail.geminiApiKey.');
             }
 
-
-            const model = 'llama-3.3-70b-versatile';
-            const url = "https://api.groq.com/openai/v1/chat/completions";
+            const model = config.get<string>('geminiModel') || 'gemini-2.0-flash';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        { role: 'system', content: 'You are an architecture summarizing agent.' },
-                        { role: 'user', content: prompt }
+                    systemInstruction: {
+                        parts: [{ text: 'You are an architecture summarizing agent.' }]
+                    },
+                    contents: [
+                        { role: 'user', parts: [{ text: prompt }] }
                     ],
-                    temperature: 0.3
+                    generationConfig: {
+                        temperature: 0.3,
+                        maxOutputTokens: 3000
+                    }
                 })
             });
+
             const data: any = await response.json();
-            if (data.error) throw new Error(data.error.message);
-            return data.choices[0].message.content;
+            if (!response.ok || data.error) {
+                throw new Error(data.error?.message || response.statusText);
+            }
+
+            const content = (data.candidates?.[0]?.content?.parts || [])
+                .map((p: any) => p.text || '')
+                .join('')
+                .trim();
+            return content || 'No summary returned by Gemini.';
         } else {
             const endpoint = config.get<string>('azureOpenAiEndpoint');
             const apiKey = config.get<string>('azureOpenAiApiKey');
@@ -436,9 +641,8 @@ ${body}\n`);
 
 
     private static async callFunctionChatLLM(query: string, history: any[], context?: {code: string, meta: string}): Promise<string> {
-        const apiKey = ConfigUtils.getGroqApiKey('func');
-        if (!apiKey) throw new Error('Groq API Key (Dedicated) missing in .env as FUNC_CHAT_GROQ_API_KEY or GROQ_API_KEY');
-
+        const config = vscode.workspace.getConfiguration('ail');
+        const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
 
         const systemPrompt = `You are AIL, an advanced architecture explorer. You specialize in explaining implementation details.
 You are given the code of a target function AND the code of its transitive dependencies (up to depth 3).
@@ -453,8 +657,54 @@ ${context?.meta || ''}
 Code Context:
 ${context?.code || ''}`;
 
+        if (provider === 'gemini') {
+            const apiKey = ConfigUtils.getGeminiApiKey();
+            if (!apiKey) {
+                throw new Error('Gemini API key missing. Set GEMINI_API_KEY in .env or configure ail.geminiApiKey.');
+            }
+
+            const model = config.get<string>('geminiModel') || 'gemini-2.0-flash';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const contents = [
+                ...history.slice(-6).map((msg: any) => ({
+                    role: msg.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: String(msg.content || '') }]
+                })),
+                { role: 'user', parts: [{ text: query }] }
+            ];
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents,
+                    generationConfig: {
+                        temperature: 0.2,
+                        maxOutputTokens: 3000
+                    }
+                })
+            });
+
+            const data: any = await response.json();
+            if (!response.ok || data.error) {
+                throw new Error(data.error?.message || response.statusText);
+            }
+
+            const content = (data.candidates?.[0]?.content?.parts || [])
+                .map((p: any) => p.text || '')
+                .join('')
+                .trim();
+            return content || 'No response returned by Gemini.';
+        }
+
+        const apiKey = ConfigUtils.getGroqApiKey('func');
+        if (!apiKey) {
+            throw new Error('Groq API key missing for function chat. Set FUNC_CHAT_GROQ_API_KEY or GROQ_API_KEY in .env.');
+        }
+
         const model = 'llama-3.3-70b-versatile';
-        const url = "https://api.groq.com/openai/v1/chat/completions";
+        const url = 'https://api.groq.com/openai/v1/chat/completions';
         const messages = [
             { role: 'system', content: systemPrompt },
             ...history.slice(-6),
@@ -463,16 +713,18 @@ ${context?.code || ''}`;
 
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+                Authorization: `Bearer ${apiKey}`
             },
-            body: JSON.stringify({ model: model, messages: messages, temperature: 0.2 })
+            body: JSON.stringify({ model, messages, temperature: 0.2 })
         });
 
         const data: any = await response.json();
-        if (data.error) throw new Error(data.error.message);
-        return data.choices[0].message.content;
+        if (!response.ok || data.error) {
+            throw new Error(data.error?.message || response.statusText);
+        }
+        return data.choices?.[0]?.message?.content || 'No response returned by Groq.';
     }
 
 }
