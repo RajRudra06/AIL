@@ -10,6 +10,7 @@ export interface FunctionNodeData {
     endLine: number;
     depth: number;
     hasChildren?: boolean;
+    canExpand?: boolean;
     isExpanded?: boolean;
     onExpand?: (nodeId: string) => void;
     onClick?: (file: string, line: number) => void;
@@ -25,23 +26,20 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
     sourcePosition = Position.Bottom, 
     targetPosition = Position.Top 
 }) => {
-    
-    // Neon-tinted depth palette: smooth, minimal, architectural
+
+    // Depth-based palette to make graph traversal levels visually obvious.
     const getDepthColor = (depth: number) => {
-        const file = String(data.file || '').toLowerCase();
-        // Classify by architectural lane for consistent visual identity
-        if (file.includes('webview') || file.includes('panel/') || file.includes('view') || 
-            file.endsWith('.tsx') || file.endsWith('.jsx') || file.includes('ui.') || file.includes('render')) {
-            // View / UI — Electric Blue
-            return { bg: 'rgba(56, 189, 248, 0.12)', border: '#38bdf8', text: '#e0f2fe', glow: 'rgba(56, 189, 248, 0.18)' };
-        }
-        if (file.includes('util') || file.includes('helper') || file.includes('config') ||
-            file.includes('mock') || file.includes('db') || file.includes('service') || file.includes('adapter')) {
-            // Utility / I-O — Neon Emerald
-            return { bg: 'rgba(52, 211, 153, 0.12)', border: '#34d399', text: '#d1fae5', glow: 'rgba(52, 211, 153, 0.18)' };
-        }
-        // Controller / Logic — Soft Violet
-        return { bg: 'rgba(167, 139, 250, 0.12)', border: '#a78bfa', text: '#ede9fe', glow: 'rgba(167, 139, 250, 0.18)' };
+        const palette = [
+            { bg: 'rgba(56, 189, 248, 0.12)', border: '#38bdf8', text: '#e0f2fe', glow: 'rgba(56, 189, 248, 0.18)' },
+            { bg: 'rgba(52, 211, 153, 0.12)', border: '#34d399', text: '#d1fae5', glow: 'rgba(52, 211, 153, 0.18)' },
+            { bg: 'rgba(167, 139, 250, 0.12)', border: '#a78bfa', text: '#ede9fe', glow: 'rgba(167, 139, 250, 0.18)' },
+            { bg: 'rgba(245, 158, 11, 0.12)', border: '#f59e0b', text: '#fef3c7', glow: 'rgba(245, 158, 11, 0.18)' },
+            { bg: 'rgba(249, 115, 22, 0.12)', border: '#f97316', text: '#ffedd5', glow: 'rgba(249, 115, 22, 0.18)' },
+            { bg: 'rgba(239, 68, 68, 0.12)', border: '#ef4444', text: '#fee2e2', glow: 'rgba(239, 68, 68, 0.18)' },
+        ];
+
+        const normalizedDepth = Math.max(1, Math.min(depth || 1, palette.length));
+        return palette[normalizedDepth - 1];
     };
 
     const colors = getDepthColor(data.depth || 1);
@@ -63,7 +61,7 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
                 <span className="node-label" title={data.label}>{data.label}</span>
             </div>
 
-            {data.hasChildren && (
+            {data.hasChildren && data.canExpand !== false && (
                 <button 
                     className={`expand-btn ${data.isExpanded ? 'expanded' : ''}`}
                     onClick={(e) => {

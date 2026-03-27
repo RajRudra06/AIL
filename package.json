@@ -57,11 +57,22 @@
           "default": "",
           "description": "Gemini API key fallback when .env does not define GEMINI_API_KEY or GOOGLE_API_KEY"
         },
+        "ail.ollamaBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL for local Ollama server"
+        },
+        "ail.ollamaModel": {
+          "type": "string",
+          "default": "qwen3.5:4b",
+          "description": "Ollama model name for local inference (example: qwen3.5:4b)"
+        },
         "ail.aiProvider": {
           "type": "string",
           "enum": [
             "azure",
-            "gemini"
+            "gemini",
+            "ollama"
           ],
           "default": "",
           "description": "The AI provider to use for RAG and Chat (selected at launch)"

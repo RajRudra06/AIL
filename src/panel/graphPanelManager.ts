@@ -6,6 +6,29 @@ import { ConfigUtils } from '../utils/configUtils';
 export class GraphPanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
 
+    private static async resolveOllamaModel(baseUrl: string, configuredModel: string): Promise<string> {
+        try {
+            const response = await fetch(`${baseUrl}/api/tags`, { method: 'GET' });
+            if (!response.ok) {
+                return configuredModel;
+            }
+
+            const payload = await response.json() as any;
+            const models = Array.isArray(payload.models) ? payload.models : [];
+            const modelNames = models
+                .map((m: any) => String(m?.name || '').trim())
+                .filter((name: string) => name.length > 0);
+
+            if (modelNames.includes(configuredModel)) {
+                return configuredModel;
+            }
+
+            return modelNames[0] || configuredModel;
+        } catch {
+            return configuredModel;
+        }
+    }
+
     private static pruneGraphForWebview(rawGraph: any, maxNodes = 1200, maxEdges = 6000): any {
         if (!rawGraph || !Array.isArray(rawGraph.nodes) || !Array.isArray(rawGraph.edges)) {
             return rawGraph;
@@ -257,6 +280,9 @@ export class GraphPanelManager {
         let graphData = null;
         let summaryData: any = null;
         let couplingData = null;
+        let layer1Meta: any = null;
+        let churnData: any = null;
+        let dashboardOverview: any = null;
 
         try {
             const entitiesPath = path.join(ailRoot, 'layer2', 'analysis', 'entities.json');
@@ -415,6 +441,30 @@ export class GraphPanelManager {
             if (fs.existsSync(couplingPath)) {
                 couplingData = JSON.parse(fs.readFileSync(couplingPath, 'utf-8'));
             }
+
+            const layer1MetaPath = path.join(ailRoot, 'layer1', 'meta-data.json');
+            if (fs.existsSync(layer1MetaPath)) {
+                layer1Meta = JSON.parse(fs.readFileSync(layer1MetaPath, 'utf-8'));
+            }
+
+            const churnPathL3 = path.join(ailRoot, 'layer3', 'analysis', 'file_churn.json');
+            if (fs.existsSync(churnPathL3)) {
+                churnData = JSON.parse(fs.readFileSync(churnPathL3, 'utf-8'));
+            }
+
+            dashboardOverview = {
+                projectName: path.basename(workspacePath),
+                primaryLanguage: layer1Meta?.primaryLanguage || 'Unknown',
+                totalFiles: layer1Meta?.metrics?.totalFiles || 0,
+                totalLines: layer1Meta?.metrics?.totalLines || 0,
+                frameworks: (layer1Meta?.frameworks?.frameworks || []).map((f: any) => f.name).slice(0, 6),
+                riskHotspots: (summaryData?.riskHotspots || []).length,
+                criticalRisk: (summaryData?.riskHotspots || []).filter((r: any) => r.level === 'critical').length,
+                highRisk: (summaryData?.riskHotspots || []).filter((r: any) => r.level === 'high').length,
+                hotFiles: (churnData?.hotFiles || []).length,
+                strongCouplingPairs: (couplingData?.stronglyCoupled || []).length,
+                avgBlastRadius: summaryData?.blastRadius?.avgBlastRadius || 0,
+            };
         } catch (err) {
             console.error('[AIL] Error reading graph data:', err);
         }
@@ -434,6 +484,7 @@ export class GraphPanelManager {
             data: {
                 graph: graphForWebview,
                 coupling: couplingData,
+                overview: dashboardOverview,
             }
         });
 
@@ -452,6 +503,7 @@ export class GraphPanelManager {
                         data: {
                             graph: graphForWebview,
                             coupling: couplingData,
+                            overview: dashboardOverview,
                             report: llmSummary
                         }
                     });
@@ -463,6 +515,7 @@ export class GraphPanelManager {
                         data: {
                             graph: graphForWebview,
                             coupling: couplingData,
+                            overview: dashboardOverview,
                             report: `> **LLM Summary Failed**\n\nCould not generate the English summary. Check your API Keys in settings.\n\nError: ${e.message}\n\nFalling back to default overview:\n\n${summaryData.overview}`
                         }
                     });
@@ -472,7 +525,7 @@ export class GraphPanelManager {
     }
     private static async generateLLMSummary(summary: any): Promise<string> {
         const config = vscode.workspace.getConfiguration('ail');
-        const provider = config.get<string>('aiProvider') || 'azure';
+        const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
         
         const rawStats = `
         Project Overview: ${summary.overview || 'N/A'}
@@ -539,6 +592,37 @@ For each of the 5 primary Dashboard Properties (Risk Hotspots, Cyclomatic Comple
                 .join('')
                 .trim();
             return content || 'No summary returned by Gemini.';
+        } else if (provider === 'ollama') {
+            const baseUrl = (config.get<string>('ollamaBaseUrl') || 'http://localhost:11434').replace(/\/+$/, '');
+            const configuredModel = config.get<string>('ollamaModel') || 'qwen3.5:4b';
+            const model = await GraphPanelManager.resolveOllamaModel(baseUrl, configuredModel);
+            const url = `${baseUrl}/api/chat`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: 'You are an architecture summarizing agent.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    stream: false,
+                    options: {
+                        temperature: 0.3
+                    }
+                })
+            });
+
+            const data: any = await response.json();
+            if (!response.ok || data.error) {
+                throw new Error(data.error?.message || response.statusText);
+            }
+
+            const content = data?.message?.content;
+            return (typeof content === 'string' && content.trim().length > 0)
+                ? content.trim()
+                : 'No summary returned by Ollama.';
         } else {
             const endpoint = config.get<string>('azureOpenAiEndpoint');
             const apiKey = config.get<string>('azureOpenAiApiKey');
@@ -642,7 +726,7 @@ ${body}\n`);
 
     private static async callFunctionChatLLM(query: string, history: any[], context?: {code: string, meta: string}): Promise<string> {
         const config = vscode.workspace.getConfiguration('ail');
-        const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
+        const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
 
         const systemPrompt = `You are AIL, an advanced architecture explorer. You specialize in explaining implementation details.
 You are given the code of a target function AND the code of its transitive dependencies (up to depth 3).
@@ -696,6 +780,45 @@ ${context?.code || ''}`;
                 .join('')
                 .trim();
             return content || 'No response returned by Gemini.';
+        }
+
+        if (provider === 'ollama') {
+            const baseUrl = (config.get<string>('ollamaBaseUrl') || 'http://localhost:11434').replace(/\/+$/, '');
+            const configuredModel = config.get<string>('ollamaModel') || 'qwen3.5:4b';
+            const model = await GraphPanelManager.resolveOllamaModel(baseUrl, configuredModel);
+            const url = `${baseUrl}/api/chat`;
+
+            const messages = [
+                { role: 'system', content: systemPrompt },
+                ...history.slice(-6).map((msg: any) => ({
+                    role: msg.role === 'assistant' ? 'assistant' : 'user',
+                    content: String(msg.content || '')
+                })),
+                { role: 'user', content: query }
+            ];
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model,
+                    messages,
+                    stream: false,
+                    options: {
+                        temperature: 0.2
+                    }
+                })
+            });
+
+            const data: any = await response.json();
+            if (!response.ok || data.error) {
+                throw new Error(data.error?.message || response.statusText);
+            }
+
+            const content = data?.message?.content;
+            return (typeof content === 'string' && content.trim().length > 0)
+                ? content.trim()
+                : 'No response returned by Ollama.';
         }
 
         const apiKey = ConfigUtils.getGroqApiKey('func');

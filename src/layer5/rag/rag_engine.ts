@@ -113,7 +113,7 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
     try {
         const graphData = JSON.parse(fs.readFileSync(graphFile, 'utf8'));
         const config = vscode.workspace.getConfiguration('ail');
-        const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
+        const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
 
         const { wantsCode, wantsDiff } = detectIntent(query);
 
@@ -390,6 +390,8 @@ export async function askQuestion(query: string, history: ChatMessage[], workspa
 
         if (provider === 'gemini') {
             return await askGemini(query, systemPrompt, recentHistory, config);
+        } else if (provider === 'ollama') {
+            return await askOllama(query, systemPrompt, recentHistory, config);
         } else {
             return await askAzure(query, systemPrompt, recentHistory, config);
         }
@@ -468,4 +470,66 @@ async function askGemini(query: string, systemPrompt: string, history: ChatMessa
         .trim();
 
     return content || 'No response from Gemini.';
+}
+
+async function resolveOllamaModel(baseUrl: string, configuredModel: string): Promise<string> {
+    try {
+        const response = await fetch(`${baseUrl}/api/tags`, { method: 'GET' });
+        if (!response.ok) {
+            return configuredModel;
+        }
+
+        const payload = await response.json() as any;
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        const modelNames = models
+            .map((m: any) => String(m?.name || '').trim())
+            .filter((name: string) => name.length > 0);
+
+        if (modelNames.includes(configuredModel)) {
+            return configuredModel;
+        }
+
+        return modelNames[0] || configuredModel;
+    } catch {
+        return configuredModel;
+    }
+}
+
+async function askOllama(query: string, systemPrompt: string, history: ChatMessage[], config: vscode.WorkspaceConfiguration): Promise<string> {
+    const baseUrl = (config.get<string>('ollamaBaseUrl') || 'http://localhost:11434').replace(/\/+$/, '');
+    const configuredModel = config.get<string>('ollamaModel') || 'qwen3.5:4b';
+    const model = await resolveOllamaModel(baseUrl, configuredModel);
+    const url = `${baseUrl}/api/chat`;
+
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-6).map(msg => ({ role: msg.role, content: msg.content })),
+        { role: 'user', content: query }
+    ];
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: false,
+            options: {
+                temperature: 0.2
+            }
+        })
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        return `Ollama API Error: ${response.status} ${response.statusText}${errText ? `\n${errText}` : ''}`;
+    }
+
+    const data = await response.json() as any;
+    const content = data?.message?.content;
+    if (typeof content === 'string' && content.trim().length > 0) {
+        return content.trim();
+    }
+
+    return 'No response returned by Ollama. Check that the configured model is available locally (try `ollama list`).';
 }

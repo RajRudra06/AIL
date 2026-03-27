@@ -370,6 +370,7 @@ export function getPanelHTML(): string {
         <div class="actions">
             <button class="btn outline" onclick="goHome()">← Home</button>
             <button class="btn outline" onclick="purgeCache()">Purge Cache</button>
+            <button class="btn outline" onclick="selectModel()">Select Model</button>
             <button class="btn green" id="btn-load-graphs" onclick="handleLoadGraphs()" disabled>Open Graph View</button>
         </div>
     </div>
@@ -454,6 +455,7 @@ export function getPanelHTML(): string {
 
     function handleLoadGraphs() { vscode.postMessage({ command: 'loadGraphs' }); }
     function purgeCache() { vscode.postMessage({ command: 'requestPurge' }); }
+    function selectModel() { vscode.postMessage({ command: 'selectModel' }); }
 
     /* ── PROGRESS OVERLAY ────────────────────────── */
     var layerTexts = {
@@ -1074,6 +1076,10 @@ export function getPanelHTML(): string {
                 chatHistory.push({ role: 'assistant', content: msg.text });
                 document.getElementById('chat-controls').classList.remove('chat-disabled');
             }
+        }
+
+        if (msg.command === 'modelSelectionUpdated') {
+            appendChat('ai', 'Model selection updated. Future AI requests will use your latest configuration.');
         }
 
     });

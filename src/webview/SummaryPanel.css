@@ -3,6 +3,8 @@
     flex-direction: column;
     gap: 20px;
     font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 0;
+    overflow-y: auto;
     overflow-wrap: break-word;
     word-break: break-word;
     word-wrap: break-word;

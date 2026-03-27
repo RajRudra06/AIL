@@ -12,7 +12,7 @@ import { askQuestion } from '../layer5/rag/rag_engine';
 import { ConfigUtils } from '../utils/configUtils';
 
 let hasPromptedGeminiKeyThisSession = false;
-let promptedModelProviderThisSession: 'azure' | 'gemini' | undefined;
+let promptedModelProviderThisSession: 'azure' | 'gemini' | 'ollama' | undefined;
 
 const GEMINI_MODEL_PRESETS = [
     'gemini-2.0-flash',
@@ -192,20 +192,106 @@ async function promptForAzureDeployments(config: vscode.WorkspaceConfiguration):
     await config.update('azureOpenAiEmbedDeployment', embedSelection.label, vscode.ConfigurationTarget.Workspace);
 }
 
-async function ensureProviderModelSelection(): Promise<void> {
-    const config = vscode.workspace.getConfiguration('ail');
-    const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
+async function promptForOllamaModel(config: vscode.WorkspaceConfiguration): Promise<void> {
+    const baseUrl = (config.get<string>('ollamaBaseUrl') || 'http://localhost:11434').replace(/\/+$/, '');
+    const currentModel = config.get<string>('ollamaModel') || 'qwen3.5:4b';
 
-    if (promptedModelProviderThisSession === provider) {
+    const options: Array<{ label: string; description?: string }> = [];
+    try {
+        const response = await fetch(`${baseUrl}/api/tags`, { method: 'GET' });
+        if (response.ok) {
+            const payload = await response.json() as any;
+            const models = Array.isArray(payload.models) ? payload.models : [];
+            models.forEach((m: any) => {
+                const modelName = String(m.name || '').trim();
+                if (modelName.length > 0) {
+                    options.push({
+                        label: modelName,
+                        description: modelName === currentModel ? 'current (local)' : 'local model'
+                    });
+                }
+            });
+        }
+    } catch {
+        // If ollama is unavailable, we'll still allow manual entry.
+    }
+
+    if (!options.find(o => o.label === currentModel)) {
+        options.unshift({ label: currentModel, description: 'current' });
+    }
+
+    const selection = await vscode.window.showQuickPick(
+        [
+            ...options,
+            { label: 'Custom model...', description: 'Type any Ollama model tag' }
+        ],
+        {
+            title: 'Select Ollama Model',
+            placeHolder: `Current: ${currentModel} (Base URL: ${baseUrl})`,
+            ignoreFocusOut: true
+        }
+    );
+
+    if (!selection) {
         return;
+    }
+
+    if (selection.label === 'Custom model...') {
+        const customModel = await vscode.window.showInputBox({
+            title: 'Custom Ollama Model',
+            prompt: 'Enter Ollama model tag (example: qwen3.5:4b)',
+            value: currentModel,
+            ignoreFocusOut: true,
+            validateInput: (value: string) => value.trim().length === 0 ? 'Model name is required.' : null
+        });
+
+        if (customModel && customModel.trim() !== '') {
+            await config.update('ollamaModel', customModel.trim(), vscode.ConfigurationTarget.Workspace);
+        }
+        return;
+    }
+
+    await config.update('ollamaModel', selection.label, vscode.ConfigurationTarget.Workspace);
+}
+
+async function ensureProviderModelSelection(forcePrompt = false): Promise<void> {
+    const config = vscode.workspace.getConfiguration('ail');
+    const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
+
+    if (!forcePrompt && promptedModelProviderThisSession === provider) {
+        return;
+    }
+
+    if (!forcePrompt) {
+        if (provider === 'gemini') {
+            const existingGeminiModel = config.get<string>('geminiModel');
+            if (existingGeminiModel && existingGeminiModel.trim() !== '') {
+                promptedModelProviderThisSession = provider;
+                return;
+            }
+        } else if (provider === 'azure') {
+            const existingAzureChat = config.get<string>('azureOpenAiDeployment');
+            if (existingAzureChat && existingAzureChat.trim() !== '') {
+                promptedModelProviderThisSession = provider;
+                return;
+            }
+        } else {
+            const existingOllamaModel = config.get<string>('ollamaModel');
+            if (existingOllamaModel && existingOllamaModel.trim() !== '') {
+                promptedModelProviderThisSession = provider;
+                return;
+            }
+        }
     }
 
     promptedModelProviderThisSession = provider;
 
     if (provider === 'gemini') {
         await promptForGeminiModel(config);
-    } else {
+    } else if (provider === 'azure') {
         await promptForAzureDeployments(config);
+    } else {
+        await promptForOllamaModel(config);
     }
 }
 
@@ -215,7 +301,7 @@ async function ensureProviderModelSelection(): Promise<void> {
 async function ensureGeminiKey(): Promise<boolean> {
     const config = vscode.workspace.getConfiguration('ail');
 
-    const provider = config.get<'azure' | 'gemini'>('aiProvider') || 'azure';
+    const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
     if (provider !== 'gemini') {
         return true;
     }
@@ -289,10 +375,6 @@ export class PanelManager {
         );
 
         panel.webview.html = getPanelHTML();
-    
-    // Proactively validate selected provider settings and model choice
-    ensureProviderModelSelection();
-    ensureGeminiKey();
 
 
         panel.webview.onDidReceiveMessage(
@@ -302,6 +384,11 @@ export class PanelManager {
 
                     case 'requestData':
                         PanelManager.sendDashboardData(panel);
+                        break;
+
+                    case 'selectModel':
+                        await ensureProviderModelSelection(true);
+                        panel.webview.postMessage({ command: 'modelSelectionUpdated' });
                         break;
 
                     case 'useCurrentAnalysis':
@@ -348,7 +435,7 @@ export class PanelManager {
                         
                         if (selection === 'Yes') {
                             // Failsafe check (Uses ConfigUtils for sole truth)
-                            const provider = vscode.workspace.getConfiguration('ail').get<'azure' | 'gemini'>('aiProvider') || 'azure';
+                            const provider = vscode.workspace.getConfiguration('ail').get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
                             if (provider === 'gemini') {
                                 const geminiKey = ConfigUtils.getGeminiApiKey();
                                 if (!geminiKey) {
@@ -406,7 +493,7 @@ export class PanelManager {
         }
 
         // Validate provider-specific key requirements (no-op for Azure)
-        const provider = vscode.workspace.getConfiguration('ail').get<'azure' | 'gemini'>('aiProvider') || 'azure';
+        const provider = vscode.workspace.getConfiguration('ail').get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
         await ensureProviderModelSelection();
         const hasProviderKey = await ensureGeminiKey();
         if (provider === 'gemini' && !hasProviderKey) {

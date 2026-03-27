@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
     ReactFlow,
     Background,
@@ -58,6 +58,28 @@ const nodeTypes = {
     customFunction: FunctionNode
 };
 
+const AutoFit: React.FC<{ nodeCount: number }> = ({ nodeCount }) => {
+    const { fitView } = useReactFlow();
+    const didFitInitially = useRef(false);
+
+    useEffect(() => {
+        if (nodeCount <= 0) {
+            didFitInitially.current = false;
+            return;
+        }
+        if (didFitInitially.current) {
+            return;
+        }
+        const timer = window.setTimeout(() => {
+            fitView({ duration: 260, padding: 0.2 });
+            didFitInitially.current = true;
+        }, 40);
+        return () => window.clearTimeout(timer);
+    }, [nodeCount, fitView]);
+
+    return null;
+};
+
 export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeClick, onNodesChange, onEdgesChange }) => {
     
     // Default edge configurations
@@ -80,14 +102,13 @@ export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeCl
                     connectionLineType={ConnectionLineType.SmoothStep}
                     defaultEdgeOptions={defaultEdgeOptions}
 
-                    fitView
-                    fitViewOptions={{ padding: 0.2 }}
                     minZoom={0.1}
                     maxZoom={2}
                     nodesDraggable={false} // Lock to algorithmic layout
                     nodesConnectable={false}
 
                 >
+                    <AutoFit nodeCount={nodes.length} />
 
                     <Background 
                         variant={BackgroundVariant.Dots} 
