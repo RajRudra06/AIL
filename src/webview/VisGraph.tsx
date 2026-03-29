@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 
-export const VisGraph: React.FC<{ data: any; llmLimit: number; onNodeSelect?: (nodeId: string) => void }> = ({ data, llmLimit, onNodeSelect }) => {
+const VisGraphInner: React.FC<{ data: any; llmLimit: number; onNodeSelect?: (nodeId: string) => void }> = ({ data, llmLimit, onNodeSelect }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const networkRef = useRef<any>(null);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -187,3 +187,10 @@ export const VisGraph: React.FC<{ data: any; llmLimit: number; onNodeSelect?: (n
         </div>
     );
 };
+
+export const VisGraph = memo(VisGraphInner, (prev, next) => {
+    // Only rebuild vis network if node count changed or llmLimit changed
+    const prevCount = prev.data?.graph?.nodes?.length ?? 0;
+    const nextCount = next.data?.graph?.nodes?.length ?? 0;
+    return prevCount === nextCount && prev.llmLimit === next.llmLimit;
+});

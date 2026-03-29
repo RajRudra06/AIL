@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useTransition, useRef, useCallback } from 'react';
 import './App.css';
 
 import { GraphLayout } from './GraphLayout';
@@ -56,7 +56,7 @@ const App: React.FC = () => {
     const [isLoadingChat, setIsLoadingChat] = useState(false);
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
     const [viewMode, setViewMode] = useState<'relationships' | 'core' | 'independent'>('relationships');
-    const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('function');
+    const [graphViewMode, setGraphViewMode] = useState<GraphViewMode>('overall');
     const [relationshipLimit, setRelationshipLimit] = useState<number>(NODE_PAGE_SIZE);
     const [independentLimit, setIndependentLimit] = useState<number>(NODE_PAGE_SIZE);
     const [relationshipTotal, setRelationshipTotal] = useState<number>(0);
@@ -75,12 +75,17 @@ const App: React.FC = () => {
     const [searchFocusTick, setSearchFocusTick] = useState<number>(0);
     const [currentQueryText, setCurrentQueryText] = useState<string>('');
 
+    const [isPendingLayout, startLayoutTransition] = useTransition();
+    const initDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Use Refs to bypass stale closures for callbacks bound inside nodes
     const graphDataRef = React.useRef<any>(null);
     const nodesRef = React.useRef<Node[]>([]);
     const edgesRef = React.useRef<Edge[]>([]);
     const isResizing = React.useRef<boolean>(false);
     const isResizingRight = React.useRef<boolean>(false);
+    // Stable identity ref for vis-network data — only rebuild when node count actually changes
+    const visDataVersionRef = useRef<number>(0);
 
     useEffect(() => { graphDataRef.current = graphData; }, [graphData]);
     useEffect(() => { nodesRef.current = nodes; }, [nodes]);
@@ -214,7 +219,10 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (!graphData) return;
-        initializeGraph(graphData, viewMode, graphViewMode);
+        if (initDebounceRef.current) clearTimeout(initDebounceRef.current);
+        initDebounceRef.current = setTimeout(() => {
+            startLayoutTransition(() => { initializeGraph(graphData, viewMode, graphViewMode); });
+        }, 150);
     }, [relationshipLimit, independentLimit, renderNodeBudget]);
 
     useEffect(() => {
@@ -1407,6 +1415,14 @@ const App: React.FC = () => {
     const renderedEdges = Number(stats.renderedEdges || graphData?.graph?.edges?.length || 0);
     const fullEdges = Number(stats.totalEdges || graphData?.graph?.edges?.length || 0);
 
+    const handleVisNodeSelect = useCallback((nodeId: string) => {
+        const gNode = graphDataRef.current?.graph?.nodes?.find((n: any) => n.id === nodeId);
+        if (gNode) {
+            handleExplainFunction(nodeId, gNode.name || gNode.id, gNode.file);
+            setSelectedNodeIds([nodeId]);
+        }
+    }, []);
+
     const modeSemantics: Record<GraphViewMode, string> = {
         function: 'Full static call topology (lazy expanded) with all known call edges.',
         directory: 'File-level dependency view aggregated from entity interactions.',
@@ -1438,7 +1454,7 @@ const App: React.FC = () => {
                                     setGraphViewMode('function');
                                     setRelationshipLimit(NODE_PAGE_SIZE);
                                     setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) initializeGraph(graphData, viewMode, 'function');
+                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'function'));
                                 }}
                             >
                                 Function Graph
@@ -1449,7 +1465,7 @@ const App: React.FC = () => {
                                     setGraphViewMode('directory');
                                     setRelationshipLimit(NODE_PAGE_SIZE);
                                     setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) initializeGraph(graphData, viewMode, 'directory');
+                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'directory'));
                                 }}
                             >
                                 Directory Graph
@@ -1458,7 +1474,7 @@ const App: React.FC = () => {
                                 className={`view-btn ${graphViewMode === 'sequence' ? 'active' : ''}`}
                                 onClick={() => {
                                     setGraphViewMode('sequence');
-                                    if (graphData) initializeGraph(graphData, viewMode, 'sequence');
+                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'sequence'));
                                 }}
                             >
                                 Sequence
@@ -1469,7 +1485,7 @@ const App: React.FC = () => {
                                     setGraphViewMode('overall');
                                     setRelationshipLimit(NODE_PAGE_SIZE);
                                     setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) initializeGraph(graphData, viewMode, 'overall');
+                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'overall'));
                                 }}
                             >
                                 Overall Graph
@@ -1479,9 +1495,6 @@ const App: React.FC = () => {
                                 style={graphViewMode === 'risk_heatmap' ? { borderColor: '#ff4040', color: '#ffaaaa', backgroundColor: 'rgba(255, 64, 64, 0.1)' } : {}}
                                 onClick={() => {
                                     setGraphViewMode('risk_heatmap');
-                                    setRelationshipLimit(NODE_PAGE_SIZE);
-                                    setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) initializeGraph(graphData, viewMode, 'overall');
                                 }}
                             >
                                 Risk Heatmap
@@ -1791,37 +1804,37 @@ const App: React.FC = () => {
                     {graphViewMode === 'risk_heatmap' ? (
                         <RiskHeatmap
                             data={graphData}
-                            onNodeSelect={(nodeId) => {
-                                const gNode = graphData?.graph?.nodes?.find((n: any) => n.id === nodeId);
-                                if (gNode) {
-                                    handleExplainFunction(nodeId, gNode.name || gNode.id, gNode.file);
-                                    setSelectedNodeIds([nodeId]);
-                                }
-                            }}
+                            onNodeSelect={handleVisNodeSelect}
                         />
                     ) : graphViewMode === 'overall' ? (
                         <VisGraph
                             data={graphData}
                             llmLimit={llmLimit}
-                            onNodeSelect={(nodeId) => {
-                                const gNode = graphData?.graph?.nodes?.find((n: any) => n.id === nodeId);
-                                if (gNode) {
-                                    handleExplainFunction(nodeId, gNode.name || gNode.id, gNode.file);
-                                    setSelectedNodeIds([nodeId]);
-                                }
-                            }}
+                            onNodeSelect={handleVisNodeSelect}
                         />
                     ) : nodes.length > 0 ? (
-                        <GraphLayout 
-                            nodes={nodes} 
-                            edges={styledEdges} 
-                            onNodeClick={handleNodeClick}
-                            onNodesChange={onNodesChange}
-                            onEdgesChange={onEdgesChange}
-                            focusNodeId={activeSearchNodeId || undefined}
-                            focusToken={searchFocusTick}
-                        />
-
+                        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                            <GraphLayout
+                                nodes={nodes}
+                                edges={styledEdges}
+                                onNodeClick={handleNodeClick}
+                                onNodesChange={onNodesChange}
+                                onEdgesChange={onEdgesChange}
+                                focusNodeId={activeSearchNodeId || undefined}
+                                focusToken={searchFocusTick}
+                            />
+                            {isPendingLayout && (
+                                <div style={{
+                                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'rgba(13,17,23,0.55)', backdropFilter: 'blur(2px)', zIndex: 20, pointerEvents: 'none'
+                                }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: '#8b949e', fontFamily: 'system-ui', fontSize: 13 }}>
+                                        <div style={{ width: 28, height: 28, border: '3px solid rgba(139,92,246,0.3)', borderTop: '3px solid #8b5cf6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                        Recalculating layout...
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <div className="graph-empty-state">
                             {graphLoadError
@@ -1837,15 +1850,15 @@ const App: React.FC = () => {
                             <div className="legend-title" style={{ color: '#ffaaaa' }}>Risk Priority Index (RPI)</div>
                             <div className="legend-row">
                                 <span className="legend-dot" style={{ background: '#ff4040', boxShadow: '0 0 8px #ff4040' }} />
-                                <span>Critical Risk (&ge; 7.0)</span>
+                                <span>Critical Risk (&ge; 0.70)</span>
                             </div>
                             <div className="legend-row">
                                 <span className="legend-dot" style={{ background: '#ff9f5f' }} />
-                                <span>High Risk (&ge; 4.0)</span>
+                                <span>High Risk (&ge; 0.40)</span>
                             </div>
                             <div className="legend-row">
                                 <span className="legend-dot" style={{ background: '#ffc66d' }} />
-                                <span>Medium Risk (&ge; 1.0)</span>
+                                <span>Medium Risk (&ge; 0.15)</span>
                             </div>
                             <div className="legend-row">
                                 <span className="legend-dot" style={{ background: '#2d6a4f' }} />

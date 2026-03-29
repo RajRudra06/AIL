@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 
-export const RiskHeatmap: React.FC<{
+const RiskHeatmapInner: React.FC<{
     data: any;
     onNodeSelect?: (nodeId: string) => void;
 }> = ({ data, onNodeSelect }) => {
@@ -36,20 +36,21 @@ export const RiskHeatmap: React.FC<{
                     const rpi = (rawRpi === undefined || rawRpi === null) ? 0 : Number(rawRpi);
                     const safeRpi = isNaN(rpi) ? 0 : rpi;
 
-                    // Color by RPI tier
+                    // Color by RPI tier (RPI is 0.0 – 1.0)
                     let bg: string;
-                    if (safeRpi >= 7) { bg = '#ff4040'; }
-                    else if (safeRpi >= 4) { bg = '#ff9f5f'; }
-                    else if (safeRpi >= 1) { bg = '#ffc66d'; }
+                    if (safeRpi >= 0.7) { bg = '#ff4040'; }
+                    else if (safeRpi >= 0.4) { bg = '#ff9f5f'; }
+                    else if (safeRpi >= 0.15) { bg = '#ffc66d'; }
                     else { bg = '#2d6a4f'; }
 
                     // Size nodes by risk — higher risk = bigger node
-                    const nodeSize = Math.max(8, safeRpi * 5);
+                    const nodeSize = Math.max(8, safeRpi * 50);
 
-                    const complexity = n.metadata?.complexity ?? n.metadata?.cyclomaticComplexity ?? '—';
-                    const churn = n.metadata?.churn ?? n.metadata?.changeFrequency ?? '—';
-                    const coupling = n.metadata?.coupling ?? n.metadata?.couplingScore ?? '—';
-                    const riskLevel = n.metadata?.riskLevel || (safeRpi >= 7 ? 'critical' : safeRpi >= 4 ? 'high' : safeRpi >= 1 ? 'medium' : 'low');
+                    const complexity = n.metadata?.complexity ?? '—';
+                    const churn = n.metadata?.fileChurn ?? n.metadata?.churnScore ?? '—';
+                    const coupling = n.metadata?.coupling ?? '—';
+                    const structural = n.metadata?.structuralRisk ?? '—';
+                    const riskLevel = n.metadata?.riskLevel || (safeRpi >= 0.7 ? 'critical' : safeRpi >= 0.4 ? 'high' : safeRpi >= 0.15 ? 'medium' : 'low');
                     const filePath = n.file || n.id;
 
                     const tooltip = [
@@ -60,6 +61,7 @@ export const RiskHeatmap: React.FC<{
                         `Complexity: ${complexity}`,
                         `Churn: ${churn}`,
                         `Coupling: ${coupling}`,
+                        `Structural Risk: ${structural}`,
                     ].join('\n');
 
                     visNodes.push({
@@ -199,3 +201,9 @@ export const RiskHeatmap: React.FC<{
         </div>
     );
 };
+
+export const RiskHeatmap = memo(RiskHeatmapInner, (prev, next) => {
+    const prevCount = prev.data?.graph?.nodes?.length ?? 0;
+    const nextCount = next.data?.graph?.nodes?.length ?? 0;
+    return prevCount === nextCount;
+});
