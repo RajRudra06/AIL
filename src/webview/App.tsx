@@ -84,12 +84,14 @@ const App: React.FC = () => {
     const edgesRef = React.useRef<Edge[]>([]);
     const isResizing = React.useRef<boolean>(false);
     const isResizingRight = React.useRef<boolean>(false);
+    const graphViewModeRef = React.useRef<GraphViewMode>(graphViewMode);
     // Stable identity ref for vis-network data — only rebuild when node count actually changes
     const visDataVersionRef = useRef<number>(0);
 
     useEffect(() => { graphDataRef.current = graphData; }, [graphData]);
     useEffect(() => { nodesRef.current = nodes; }, [nodes]);
     useEffect(() => { edgesRef.current = edges; }, [edges]);
+    useEffect(() => { graphViewModeRef.current = graphViewMode; }, [graphViewMode]);
 
     // Sidebar Resizing Logic
     useEffect(() => {
@@ -1181,7 +1183,7 @@ const App: React.FC = () => {
     };
 
     const handleExpand = (nodeId: string) => {
-        if (graphViewMode !== 'function') {
+        if (graphViewModeRef.current !== 'function') {
             return;
         }
 
