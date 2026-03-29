@@ -47,21 +47,32 @@
           "default": "text-embedding-3-small",
           "description": "The deployment name of your Embeddings model in Azure OpenAI"
         },
-        "ail.geminiApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Your Google Gemini API Key"
-        },
         "ail.geminiModel": {
           "type": "string",
           "default": "gemini-2.0-flash",
           "description": "The Gemini model to use for chat (selected at launch)"
         },
+        "ail.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Gemini API key fallback when .env does not define GEMINI_API_KEY or GOOGLE_API_KEY"
+        },
+        "ail.ollamaBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL for local Ollama server"
+        },
+        "ail.ollamaModel": {
+          "type": "string",
+          "default": "qwen3.5:4b",
+          "description": "Ollama model name for local inference (example: qwen3.5:4b)"
+        },
         "ail.aiProvider": {
           "type": "string",
           "enum": [
             "azure",
-            "gemini"
+            "gemini",
+            "ollama"
           ],
           "default": "",
           "description": "The AI provider to use for RAG and Chat (selected at launch)"
@@ -98,6 +109,13 @@
     "typescript-eslint": "^8.54.0"
   },
   "dependencies": {
+    "@types/dagre": "^0.7.54",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@xyflow/react": "^12.10.1",
+    "dagre": "^0.8.5",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.20.8"
   }

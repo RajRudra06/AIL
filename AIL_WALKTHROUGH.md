@@ -2,6 +2,16 @@
 
 AIL (Architectural Intelligence Layer) is a deterministic analysis engine designed to solve the "context fragmentation" problem in large-scale software engineering. It bridges the gap between static code structure (AST) and historical evolution (Git).
 
+## 0. Latest Platform Hardening
+
+Recent updates focused on reliability for massive repositories (for example, Gitea-scale graphs):
+
+- Host-side graph payload pruning before webview transport.
+- Webview-ready handshake and bounded retry fetch for graph data.
+- Graph delivery acknowledgement telemetry (`graphDataAck`) for diagnostics.
+- Fast fallback layout for dense graphs to avoid Dagre render stalls.
+- Repository Highlights feed in dashboard to surface key moments without opening detail views.
+
 ## 1. Structural Intelligence: The Streaming AST Parser (Layer 2)
 
 **Why it works**: A naive approach to parsing a thousand-file monorepo would exhaust the Node.js memory heap. AIL uses a **RAM-Optimized Streaming Architecture**.

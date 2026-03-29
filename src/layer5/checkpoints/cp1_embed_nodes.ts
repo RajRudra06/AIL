@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as vscode from 'vscode';
+import { ConfigUtils } from '../../utils/configUtils';
 
 export interface NodeEmbedding {
     id: string;
@@ -78,42 +80,41 @@ export async function runCheckpoint1(workspacePath: string, indexDir: string): P
 
     if (!disableEmbeddings) {
         if (provider === 'gemini') {
-            const apiKey = config.get('geminiApiKey');
+            const apiKey = ConfigUtils.getGeminiApiKey();
+
             if (!apiKey) {
+
                 console.warn(`[AIL] Gemini API key not set. Skipping embeddings generation.`);
             } else {
                 for (const node of nodeEmbeddings) {
                     try {
-                        if (apiKey.toString().startsWith('gsk_')) {
-                            // Groq keys do not support Google's embedding endpoint; mock the vector
-                            node.embedding = new Array(768).fill(0.01);
-                            embeddedNodesCount++;
-                        } else {
-                            const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
-                            const reqPath = {
-                                model: "models/text-embedding-004",
-                                content: { parts: [{ text: node.text }] }
-                            };
-                            const response = await fetch(url, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(reqPath)
-                            });
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+                        const reqPath = {
+                            model: 'models/text-embedding-004',
+                            content: { parts: [{ text: node.text }] }
+                        };
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(reqPath)
+                        });
 
-                            if (response.ok) {
-                                const data = await response.json() as any;
-                                if (data.embedding?.values) {
-                                    node.embedding = data.embedding.values;
-                                    embeddedNodesCount++;
-                                }
+                        if (response.ok) {
+                            const data = await response.json() as any;
+                            if (data.embedding?.values) {
+                                node.embedding = data.embedding.values;
+                                embeddedNodesCount++;
                             }
+                        } else {
+                            const errBody = await response.text();
+                            console.error(`[AIL] Gemini embedding error for ${node.id}: ${response.status} ${errBody}`);
                         }
 
                         // Wait a fraction of a second to prevent strict ratelimiting on standard tiers
                         await new Promise(r => setTimeout(r, 100));
 
                     } catch (err) {
-                        console.error(`Gemini/Groq embedding failed for node ${node.id}`, err);
+                        console.error(`Gemini embedding failed for node ${node.id}`, err);
                     }
                 }
             }

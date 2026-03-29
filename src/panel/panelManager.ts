@@ -9,21 +9,362 @@ import { runLayer4 } from '../layer4/orchestrator';
 import { runLayer5 } from '../layer5/orchestrator';
 import { askQuestion } from '../layer5/rag/rag_engine';
 
+import { ConfigUtils } from '../utils/configUtils';
+
+let hasPromptedGeminiKeyThisSession = false;
+let promptedModelProviderThisSession: 'azure' | 'gemini' | 'ollama' | undefined;
+
+interface GeminiModelOption {
+    label: string;
+    description?: string;
+    detail?: string;
+}
+
+const AZURE_CHAT_DEPLOYMENT_PRESETS = [
+    'gpt-4o',
+    'gpt-4o-mini',
+    'gpt-4.1',
+    'gpt-4.1-mini'
+];
+
+const AZURE_EMBED_DEPLOYMENT_PRESETS = [
+    'text-embedding-3-small',
+    'text-embedding-3-large',
+    'text-embedding-ada-002'
+];
+
+async function promptForGeminiModel(config: vscode.WorkspaceConfiguration): Promise<void> {
+    const currentModel = config.get<string>('geminiModel') || 'gemini-2.0-flash';
+
+    const fetchGeminiModels = async (apiKey: string): Promise<GeminiModelOption[]> => {
+        const allModels: any[] = [];
+
+        // Fetch from both v1beta and v1alpha to capture preview/experimental models
+        for (const apiVersion of ['v1beta', 'v1alpha']) {
+            let pageToken: string | undefined;
+            try {
+                do {
+                    const url = new URL(`https://generativelanguage.googleapis.com/${apiVersion}/models`);
+                    url.searchParams.set('key', apiKey);
+                    url.searchParams.set('pageSize', '1000');
+                    if (pageToken) { url.searchParams.set('pageToken', pageToken); }
+
+                    const response = await fetch(url.toString(), { method: 'GET' });
+                    if (!response.ok) { break; }
+
+                    const payload = await response.json() as any;
+                    if (Array.isArray(payload.models)) { allModels.push(...payload.models); }
+                    pageToken = payload.nextPageToken;
+                } while (pageToken);
+            } catch {
+                // v1alpha may not be available — that's fine
+            }
+        }
+
+        // Deduplicate by model name
+        const seen = new Set<string>();
+        return allModels
+            .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+            .map((m: any) => {
+                const fullName = String(m.name || '');
+                const shortName = fullName.startsWith('models/') ? fullName.slice('models/'.length) : fullName;
+                return {
+                    label: shortName,
+                    description: m.displayName || 'Gemini model',
+                    detail: m.description || undefined
+                } as GeminiModelOption;
+            })
+            .filter((m: GeminiModelOption) => {
+                if (m.label.length === 0 || seen.has(m.label)) { return false; }
+                seen.add(m.label);
+                return true;
+            })
+            .sort((a: GeminiModelOption, b: GeminiModelOption) => a.label.localeCompare(b.label));
+    };
+
+    const options = new Map<string, GeminiModelOption>();
+
+    const geminiKey = ConfigUtils.getGeminiApiKey();
+    if (geminiKey) {
+        try {
+            const discovered = await fetchGeminiModels(geminiKey);
+            for (const model of discovered) {
+                options.set(model.label, {
+                    ...model,
+                    description: model.label === currentModel ? 'current' : model.description
+                });
+            }
+        } catch (err: any) {
+            vscode.window.showWarningMessage(`Could not fetch Gemini model list: ${err?.message || 'unknown error'}`.trim());
+        }
+    }
+
+    // Ensure the current model always appears even if API call failed
+    if (currentModel && !options.has(currentModel)) {
+        options.set(currentModel, { label: currentModel, description: 'current' });
+    }
+
+    const selection = await vscode.window.showQuickPick(
+        [
+            ...Array.from(options.values()),
+            { label: 'Custom model...', description: 'Enter a custom Gemini model name' }
+        ],
+        {
+            title: 'Select Gemini Model',
+            placeHolder: `Current: ${currentModel}`,
+            ignoreFocusOut: true
+        }
+    );
+
+    if (!selection) {
+        return;
+    }
+
+    if (selection.label === 'Custom model...') {
+        const customModel = await vscode.window.showInputBox({
+            title: 'Custom Gemini Model',
+            prompt: 'Enter Gemini model name (example: gemini-2.0-flash)',
+            value: currentModel,
+            ignoreFocusOut: true,
+            validateInput: (value: string) => value.trim().length === 0 ? 'Model name is required.' : null
+        });
+
+        if (customModel && customModel.trim() !== '') {
+            await config.update('geminiModel', customModel.trim(), vscode.ConfigurationTarget.Workspace);
+        }
+        return;
+    }
+
+    await config.update('geminiModel', selection.label, vscode.ConfigurationTarget.Workspace);
+}
+
+async function promptForAzureDeployments(config: vscode.WorkspaceConfiguration): Promise<void> {
+    const currentChat = config.get<string>('azureOpenAiDeployment') || 'gpt-4o';
+    const currentEmbed = config.get<string>('azureOpenAiEmbedDeployment') || 'text-embedding-3-small';
+
+    const chatSelection = await vscode.window.showQuickPick(
+        [
+            ...AZURE_CHAT_DEPLOYMENT_PRESETS.map(model => ({ label: model, description: model === currentChat ? 'current' : undefined })),
+            { label: 'Custom deployment...', description: 'Enter your Azure chat deployment name' }
+        ],
+        {
+            title: 'Select Azure Chat Deployment',
+            placeHolder: `Current: ${currentChat}`,
+            ignoreFocusOut: true
+        }
+    );
+
+    if (chatSelection) {
+        if (chatSelection.label === 'Custom deployment...') {
+            const customChat = await vscode.window.showInputBox({
+                title: 'Custom Azure Chat Deployment',
+                prompt: 'Enter Azure OpenAI chat deployment name',
+                value: currentChat,
+                ignoreFocusOut: true,
+                validateInput: (value: string) => value.trim().length === 0 ? 'Deployment name is required.' : null
+            });
+
+            if (customChat && customChat.trim() !== '') {
+                await config.update('azureOpenAiDeployment', customChat.trim(), vscode.ConfigurationTarget.Workspace);
+            }
+        } else {
+            await config.update('azureOpenAiDeployment', chatSelection.label, vscode.ConfigurationTarget.Workspace);
+        }
+    }
+
+    const embedSelection = await vscode.window.showQuickPick(
+        [
+            ...AZURE_EMBED_DEPLOYMENT_PRESETS.map(model => ({ label: model, description: model === currentEmbed ? 'current' : undefined })),
+            { label: 'Custom embedding deployment...', description: 'Enter your Azure embedding deployment name' },
+            { label: 'Keep current', description: `No change (${currentEmbed})` }
+        ],
+        {
+            title: 'Select Azure Embedding Deployment',
+            placeHolder: `Current: ${currentEmbed}`,
+            ignoreFocusOut: true
+        }
+    );
+
+    if (!embedSelection || embedSelection.label === 'Keep current') {
+        return;
+    }
+
+    if (embedSelection.label === 'Custom embedding deployment...') {
+        const customEmbed = await vscode.window.showInputBox({
+            title: 'Custom Azure Embedding Deployment',
+            prompt: 'Enter Azure OpenAI embedding deployment name',
+            value: currentEmbed,
+            ignoreFocusOut: true,
+            validateInput: (value: string) => value.trim().length === 0 ? 'Deployment name is required.' : null
+        });
+
+        if (customEmbed && customEmbed.trim() !== '') {
+            await config.update('azureOpenAiEmbedDeployment', customEmbed.trim(), vscode.ConfigurationTarget.Workspace);
+        }
+        return;
+    }
+
+    await config.update('azureOpenAiEmbedDeployment', embedSelection.label, vscode.ConfigurationTarget.Workspace);
+}
+
+async function promptForOllamaModel(config: vscode.WorkspaceConfiguration): Promise<void> {
+    const baseUrl = (config.get<string>('ollamaBaseUrl') || 'http://localhost:11434').replace(/\/+$/, '');
+    const currentModel = config.get<string>('ollamaModel') || 'qwen3.5:4b';
+
+    const options: Array<{ label: string; description?: string }> = [];
+    try {
+        const response = await fetch(`${baseUrl}/api/tags`, { method: 'GET' });
+        if (response.ok) {
+            const payload = await response.json() as any;
+            const models = Array.isArray(payload.models) ? payload.models : [];
+            models.forEach((m: any) => {
+                const modelName = String(m.name || '').trim();
+                if (modelName.length > 0) {
+                    options.push({
+                        label: modelName,
+                        description: modelName === currentModel ? 'current (local)' : 'local model'
+                    });
+                }
+            });
+        }
+    } catch {
+        // If ollama is unavailable, we'll still allow manual entry.
+    }
+
+    if (!options.find(o => o.label === currentModel)) {
+        options.unshift({ label: currentModel, description: 'current' });
+    }
+
+    const selection = await vscode.window.showQuickPick(
+        [
+            ...options,
+            { label: 'Custom model...', description: 'Type any Ollama model tag' }
+        ],
+        {
+            title: 'Select Ollama Model',
+            placeHolder: `Current: ${currentModel} (Base URL: ${baseUrl})`,
+            ignoreFocusOut: true
+        }
+    );
+
+    if (!selection) {
+        return;
+    }
+
+    if (selection.label === 'Custom model...') {
+        const customModel = await vscode.window.showInputBox({
+            title: 'Custom Ollama Model',
+            prompt: 'Enter Ollama model tag (example: qwen3.5:4b)',
+            value: currentModel,
+            ignoreFocusOut: true,
+            validateInput: (value: string) => value.trim().length === 0 ? 'Model name is required.' : null
+        });
+
+        if (customModel && customModel.trim() !== '') {
+            await config.update('ollamaModel', customModel.trim(), vscode.ConfigurationTarget.Workspace);
+        }
+        return;
+    }
+
+    await config.update('ollamaModel', selection.label, vscode.ConfigurationTarget.Workspace);
+}
+
+async function ensureProviderModelSelection(forcePrompt = false): Promise<void> {
+    const config = vscode.workspace.getConfiguration('ail');
+    const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
+
+    if (!forcePrompt && promptedModelProviderThisSession === provider) {
+        return;
+    }
+
+    if (!forcePrompt) {
+        if (provider === 'gemini') {
+            const existingGeminiModel = config.get<string>('geminiModel');
+            if (existingGeminiModel && existingGeminiModel.trim() !== '') {
+                promptedModelProviderThisSession = provider;
+                return;
+            }
+        } else if (provider === 'azure') {
+            const existingAzureChat = config.get<string>('azureOpenAiDeployment');
+            if (existingAzureChat && existingAzureChat.trim() !== '') {
+                promptedModelProviderThisSession = provider;
+                return;
+            }
+        } else {
+            const existingOllamaModel = config.get<string>('ollamaModel');
+            if (existingOllamaModel && existingOllamaModel.trim() !== '') {
+                promptedModelProviderThisSession = provider;
+                return;
+            }
+        }
+    }
+
+    promptedModelProviderThisSession = provider;
+
+    if (provider === 'gemini') {
+        await promptForGeminiModel(config);
+    } else if (provider === 'azure') {
+        await promptForAzureDeployments(config);
+    } else {
+        await promptForOllamaModel(config);
+    }
+}
+
 /**
- * Ensure Gemini API key is configured with the hardcoded key.
+ * Validate provider-specific key requirements without forcing provider choice.
  */
 async function ensureGeminiKey(): Promise<boolean> {
     const config = vscode.workspace.getConfiguration('ail');
 
-    // Always use Gemini — set it silently
-    await config.update('aiProvider', 'gemini', vscode.ConfigurationTarget.Global);
-    const groqKey = process.env.GROQ_API_KEY || '';
-    if (groqKey) {
-        await config.update('geminiApiKey', groqKey, vscode.ConfigurationTarget.Global);
+    const provider = config.get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
+    if (provider !== 'gemini') {
+        return true;
     }
-    
-    return true;
+
+    const geminiKey = ConfigUtils.getGeminiApiKey();
+    if (geminiKey) {
+        return true;
+    }
+
+    if (!hasPromptedGeminiKeyThisSession) {
+        hasPromptedGeminiKeyThisSession = true;
+
+        const action = await vscode.window.showWarningMessage(
+            'Gemini API key is missing. Enter a local key for this demo?',
+            'Enter Key',
+            'Open Settings',
+            'Skip'
+        );
+
+        if (action === 'Enter Key') {
+            const enteredKey = await vscode.window.showInputBox({
+                title: 'Gemini API Key (Local Demo)',
+                prompt: 'Paste your Gemini API key. It will be stored in workspace setting ail.geminiApiKey.',
+                password: true,
+                ignoreFocusOut: true,
+                validateInput: (value: string) => {
+                    if (!value || value.trim().length < 10) {
+                        return 'Please enter a valid Gemini API key.';
+                    }
+                    return null;
+                }
+            });
+
+            if (enteredKey && enteredKey.trim() !== '') {
+                await config.update('geminiApiKey', enteredKey.trim(), vscode.ConfigurationTarget.Workspace);
+                vscode.window.showInformationMessage('Gemini API key saved to workspace settings.');
+                return true;
+            }
+        } else if (action === 'Open Settings') {
+            await vscode.commands.executeCommand('workbench.action.openSettings', 'ail.geminiApiKey');
+        }
+    }
+
+    console.warn('AIL: Gemini API key not found. Set GEMINI_API_KEY in .env or ail.geminiApiKey in settings.');
+
+    return false;
 }
+
 
 export class PanelManager {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -50,6 +391,7 @@ export class PanelManager {
 
         panel.webview.html = getPanelHTML();
 
+
         panel.webview.onDidReceiveMessage(
             async message => {
                 console.log('[AIL-EXT] Received message from webview:', message.command);
@@ -59,11 +401,20 @@ export class PanelManager {
                         PanelManager.sendDashboardData(panel);
                         break;
 
+                    case 'selectModel':
+                    case 'openAiSettings':
+                        await ensureProviderModelSelection(true);
+                        panel.webview.postMessage({ command: 'modelSelectionUpdated' });
+                        break;
+
                     case 'useCurrentAnalysis':
                         // Just load existing .ail data and tell webview to show dashboard
+                        await ensureProviderModelSelection();
+                        await ensureGeminiKey();
                         PanelManager.sendDashboardData(panel);
                         panel.webview.postMessage({ command: 'showDashboard' });
                         break;
+
 
                     case 'runFreshAnalysis':
                         await PanelManager.handleRunAnalysis(panel, context);
@@ -99,6 +450,14 @@ export class PanelManager {
                         );
                         
                         if (selection === 'Yes') {
+                            // Failsafe check (Uses ConfigUtils for sole truth)
+                            const provider = vscode.workspace.getConfiguration('ail').get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
+                            if (provider === 'gemini') {
+                                const geminiKey = ConfigUtils.getGeminiApiKey();
+                                if (!geminiKey) {
+                                    throw new Error('Gemini API key missing. Set GEMINI_API_KEY in .env or configure ail.geminiApiKey.');
+                                }
+                            }
                             const wsf = vscode.workspace.workspaceFolders;
                             if (wsf) {
                                 const ailRoot = path.join(wsf[0].uri.fsPath, '.ail');
@@ -149,8 +508,15 @@ export class PanelManager {
             fs.rmSync(ailRoot, { recursive: true, force: true });
         }
 
-        // Ensure Gemini key (no-op if already set)
-        await ensureGeminiKey();
+        // Validate provider-specific key requirements (no-op for Azure)
+        const provider = vscode.workspace.getConfiguration('ail').get<'azure' | 'gemini' | 'ollama'>('aiProvider') || 'azure';
+        await ensureProviderModelSelection();
+        const hasProviderKey = await ensureGeminiKey();
+        if (provider === 'gemini' && !hasProviderKey) {
+            vscode.window.showWarningMessage('Analysis cancelled: Gemini provider selected but no key is configured.');
+            panel.webview.postMessage({ command: 'analysisCancelled' });
+            return;
+        }
 
         // Tell webview: analysis is starting now
         panel.webview.postMessage({ command: 'analysisStarted' });

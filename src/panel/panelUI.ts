@@ -29,7 +29,17 @@ export function getPanelHTML(): string {
         }
 
         .landing-brand { text-align: center; }
-        .landing-brand .logo-icon { font-size: 48px; margin-bottom: 14px; display: block; }
+        .landing-brand .logo-icon {
+            font-size: 14px;
+            margin-bottom: 14px;
+            display: inline-block;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #7ca6d3;
+            border: 1px solid rgba(124, 166, 211, 0.3);
+            border-radius: 999px;
+            padding: 5px 12px;
+        }
         .landing-brand h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
         .landing-brand h1 span { background: linear-gradient(135deg, #4a9eff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .landing-brand .tagline { font-size: 13px; color: #858585; margin-top: 8px; max-width: 460px; line-height: 1.6; }
@@ -55,7 +65,17 @@ export function getPanelHTML(): string {
         }
         .action-card:hover:not(.disabled) { border-color: #4a9eff; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(74,158,255,0.08); }
         .action-card.disabled { opacity: 0.35; cursor: not-allowed; }
-        .action-card .card-icon { font-size: 28px; }
+        .action-card .card-icon {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #7ca6d3;
+            border: 1px solid rgba(124, 166, 211, 0.28);
+            border-radius: 999px;
+            width: fit-content;
+            padding: 4px 9px;
+        }
         .action-card h3 { font-size: 15px; font-weight: 600; color: #fff; }
         .action-card p { font-size: 11.5px; color: #858585; line-height: 1.55; flex: 1; }
         .action-card .card-btn {
@@ -145,8 +165,24 @@ export function getPanelHTML(): string {
 
         .dash-content { flex: 1; padding: 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
 
-        /* Overview Card */
-        .overview-card { background: #141418; border: 1px solid #2d2d35; border-radius: 12px; padding: 24px; }
+        /* Overview Hero Card */
+        .overview-card { 
+            background: linear-gradient(135deg, #141418 0%, #1a1a1f 100%); 
+            border: 1px solid #2d2d35; 
+            border-radius: 12px; 
+            padding: 24px; 
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .overview-card:hover { border-color: #4a9eff; box-shadow: 0 8px 32px rgba(74,158,255,0.1); transform: translateY(-2px); }
+        .overview-card::after { 
+            content: 'VIEW ARCHITECTURAL DNA →'; 
+            position: absolute; top: 24px; right: 24px; 
+            font-size: 10px; font-weight: 700; color: #4a9eff; opacity: 0.6;
+        }
+
         .project-name { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 8px; }
         .project-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
         .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
@@ -168,6 +204,39 @@ export function getPanelHTML(): string {
         .stat-val { font-size: 22px; font-weight: 700; color: #fff; line-height: 1; }
         .stat-label { font-size: 10px; color: #6b6b7b; text-transform: uppercase; margin-top: 5px; letter-spacing: 0.3px; }
 
+        /* ── HIGHLIGHTS STRIP ───────────────────────── */
+        .highlights-card {
+            background: linear-gradient(135deg, #141418 0%, #181a21 100%);
+            border: 1px solid #2d2d35;
+            border-radius: 12px;
+            padding: 16px 18px;
+        }
+        .highlights-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+        .highlights-title { font-size: 13px; font-weight: 700; color: #dbe8f6; text-transform: uppercase; letter-spacing: 0.5px; }
+        .highlights-sub { font-size: 11px; color: #7f90a6; }
+        .highlights-list { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 9px; }
+        .highlight-item {
+            background: #11141c;
+            border: 1px solid rgba(122, 154, 188, 0.26);
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-height: 62px;
+        }
+        .highlight-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 8px; }
+        .highlight-tag {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(74,158,255,0.14);
+            color: #8dc2ff;
+            border: 1px solid rgba(74,158,255,0.35);
+        }
+        .highlight-meta { font-size: 10px; color: #8390a2; white-space: nowrap; }
+        .highlight-text { font-size: 12px; color: #d8e1ec; line-height: 1.45; }
+
         /* ── METRIC CARDS GRID ───────────────────────── */
         .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 
@@ -180,7 +249,18 @@ export function getPanelHTML(): string {
             transition: border-color 0.2s, transform 0.12s, box-shadow 0.2s;
         }
         .metric-card:hover { border-color: #4a9eff; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(74,158,255,0.06); }
-        .metric-card .mc-icon { font-size: 24px; margin-bottom: 10px; }
+        .metric-card .mc-icon {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #9fc0e3;
+            margin-bottom: 10px;
+            border: 1px solid rgba(159, 192, 227, 0.24);
+            border-radius: 999px;
+            width: fit-content;
+            padding: 3px 8px;
+        }
         .metric-card .mc-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
         .metric-card .mc-stat { font-size: 12px; color: #4a9eff; font-weight: 600; margin-bottom: 6px; }
         .metric-card .mc-desc { font-size: 11px; color: #6b6b7b; line-height: 1.4; }
@@ -225,14 +305,27 @@ export function getPanelHTML(): string {
         .empty-state { padding: 30px; text-align: center; color: #6b6b7b; font-style: italic; font-size: 12px; }
 
         /* Chat */
-        .chat-panel { background: #141418; border: 1px solid #2d2d35; border-radius: 10px; display: flex; flex-direction: column; max-height: 420px; height: 380px; }
+        .chat-panel { background: #141418; border: 1px solid #2d2d35; border-radius: 10px; display: flex; flex-direction: column; max-height: 480px; height: 420px; }
         .chat-header { padding: 14px 16px; border-bottom: 1px solid #2d2d35; font-size: 13px; font-weight: 600; color: #fff; }
-        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
-        .chat-bubble.ai { background: #1a1a1f; align-self: flex-start; color: #d4d4d4; }
-        .chat-bubble.user { background: #4a9eff; align-self: flex-end; color: #fff; }
+        .chat-bubble { max-width: 90%; padding: 12px 16px; border-radius: 12px; font-size: 12.5px; line-height: 1.6; position: relative; }
+        .chat-bubble.ai { background: #1a1a1f; align-self: flex-start; color: #d4d4d4; border: 1px solid rgba(255,255,255,0.05); }
+        .chat-bubble.user { background: #4a9eff; align-self: flex-end; color: #fff; box-shadow: 0 4px 12px rgba(74,158,255,0.2); }
         .chat-disabled { opacity: 0.5; pointer-events: none; }
         .chat-input { flex: 1; background: #1a1a1f; border: 1px solid #2d2d35; color: #d4d4d4; padding: 10px 12px; border-radius: 8px; font-size: 12px; outline: none; }
         .chat-input:focus { border-color: #4a9eff; }
+
+        /* Assistant Message Formatting */
+        .ai-bubble-content strong { color: #4a9eff; font-weight: 600; }
+        .ai-bubble-content .h3-style { color: #4a9eff; font-size: 14px; font-weight: 700; margin-top: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(74,158,255,0.2); padding-bottom: 2px; }
+        .ai-bubble-content .h4-style { color: #7ebbff; font-size: 13px; font-weight: 600; margin-top: 10px; margin-bottom: 4px; display: flex; align-items: center; }
+        .ai-bubble-content .h4-style::before { content: '→'; margin-right: 6px; opacity: 0.6; }
+        .ai-bubble-content ul { margin: 8px 0; padding-left: 18px; list-style: none; }
+        .ai-bubble-content li { position: relative; margin-bottom: 4px; }
+        .ai-bubble-content li::before { content: '•'; position: absolute; left: -14px; color: #4a9eff; font-weight: bold; }
+        .ai-bubble-content code { background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 4px; font-family: monospace; color: #7ebbff; font-size: 0.9em; }
+        .ai-bubble-content pre { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; margin: 10px 0; overflow-x: auto; font-family: monospace; }
+        .ai-bubble-content pre code { background: transparent; padding: 0; color: #eeeeee; }
+
     </style>
 </head>
 <body>
@@ -240,20 +333,20 @@ export function getPanelHTML(): string {
 <!-- ═══ LANDING ══════════════════════════════════════ -->
 <div id="landing" class="screen active">
     <div class="landing-brand">
-        <span class="logo-icon">⚡</span>
+        <span class="logo-icon">AIL</span>
         <h1><span>AIL</span> Mission Control</h1>
         <p class="tagline">Architectural Intelligence Layer — analyze codebases with AST parsing, git intelligence, knowledge graphs, and AI-powered insights.</p>
     </div>
     <div id="landing-status" class="landing-status"></div>
     <div class="landing-actions">
         <div class="action-card disabled" id="card-existing" onclick="handleUseExisting()">
-            <div class="card-icon">📂</div>
+            <div class="card-icon">LOAD</div>
             <h3>Use Current Analysis</h3>
             <p>Load your previous analysis results directly. No scanning — just opens the dashboard with existing .ail data.</p>
             <div class="card-btn">Open Dashboard</div>
         </div>
         <div class="action-card" id="card-fresh" onclick="handleRunFresh()">
-            <div class="card-icon">🚀</div>
+            <div class="card-icon">RUN</div>
             <h3>Run Fresh Analysis</h3>
             <p>Purges any existing .ail data and performs a full codebase scan from scratch — files, AST, git history, and knowledge graph.</p>
             <div class="card-btn">Start Fresh</div>
@@ -264,7 +357,7 @@ export function getPanelHTML(): string {
 <!-- ═══ GLASS PROGRESS OVERLAY ═══════════════════════ -->
 <div id="progress-overlay">
     <div class="glass-card">
-        <h2>⚡ Analyzing Repository</h2>
+        <h2>Analyzing Repository</h2>
         <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
         <div class="progress-text" id="prog-text">Preparing...</div>
     </div>
@@ -273,19 +366,29 @@ export function getPanelHTML(): string {
 <!-- ═══ DASHBOARD ════════════════════════════════════ -->
 <div id="dashboard" class="screen">
     <div id="dash-header">
-        <h1>⚡ AIL Mission Control</h1>
+        <h1>AIL Mission Control</h1>
         <div class="actions">
             <button class="btn outline" onclick="goHome()">← Home</button>
             <button class="btn outline" onclick="purgeCache()">Purge Cache</button>
+            <button class="btn outline" onclick="selectModel()">Select Model</button>
             <button class="btn green" id="btn-load-graphs" onclick="handleLoadGraphs()" disabled>Open Graph View</button>
         </div>
     </div>
     <div class="dash-content">
         <div id="cards-view">
             <div class="overview-card" id="overview-card"><div class="empty-state">No data</div></div>
+            <div class="highlights-card" id="highlights-card">
+                <div class="highlights-head">
+                    <div class="highlights-title">Repository Highlights</div>
+                    <div class="highlights-sub">Key moments and activity signals</div>
+                </div>
+                <div class="highlights-list" id="highlights-list">
+                    <div class="empty-state">Run analysis to generate highlights.</div>
+                </div>
+            </div>
             <div class="metric-grid" id="metric-grid"></div>
             <div class="chat-panel">
-                <div class="chat-header">🤖 Architecture GraphRAG Agent</div>
+                <div class="chat-header">Architecture GraphRAG Agent</div>
                 <div class="scroll-area" id="chat-history" style="padding:14px;display:flex;flex-direction:column;gap:10px;">
                     <div class="chat-bubble ai">Hello! I'm your Architectural Intelligence Agent. Ask me anything about the codebase.</div>
                 </div>
@@ -352,6 +455,7 @@ export function getPanelHTML(): string {
 
     function handleLoadGraphs() { vscode.postMessage({ command: 'loadGraphs' }); }
     function purgeCache() { vscode.postMessage({ command: 'requestPurge' }); }
+    function selectModel() { vscode.postMessage({ command: 'selectModel' }); }
 
     /* ── PROGRESS OVERLAY ────────────────────────── */
     var layerTexts = {
@@ -446,21 +550,128 @@ export function getPanelHTML(): string {
         var epCount = (l1.entryPoints && l1.entryPoints.entryPoints) ? l1.entryPoints.entryPoints.length : 0;
         if (epCount > 0) h += statBox(epCount, 'Entry Points');
         h += '</div>';
+        h += '</div>';
+        card.onclick = () => openDetail('metadata');
         card.innerHTML = h;
     }
+
 
     function statBox(v, l) { return '<div class="stat-box"><div class="stat-val">' + v + '</div><div class="stat-label">' + l + '</div></div>'; }
     function formatSize(kb) { return kb > 1024 ? (kb/1024).toFixed(1)+' MB' : Math.round(kb)+' KB'; }
 
+    function toShortDate(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toISOString().slice(0, 10);
+    }
+
+    function highlightItem(tag, text, meta) {
+        var m = meta ? '<div class="highlight-meta">' + esc(meta) + '</div>' : '<div class="highlight-meta">&nbsp;</div>';
+        return '<div class="highlight-item">'
+            + '<div class="highlight-top"><span class="highlight-tag">' + esc(tag) + '</span>' + m + '</div>'
+            + '<div class="highlight-text">' + esc(text) + '</div>'
+            + '</div>';
+    }
+
+    function renderHighlights() {
+        var listEl = document.getElementById('highlights-list');
+        if (!listEl) return;
+
+        var highlights = [];
+        var l3c = dashData.l3_churn || {};
+        var l3b = dashData.l3_blast || {};
+        var l3p = dashData.l3_coupling || {};
+        var l3k = dashData.l3_commits || {};
+        var l3u = dashData.l3_contributors || {};
+        var l4s = dashData.l4_summary || {};
+
+        var spots = l4s.riskHotspots || [];
+        var critical = spots.filter(function(s) { return s.level === 'critical'; });
+        var high = spots.filter(function(s) { return s.level === 'high'; });
+        if (critical.length > 0 || high.length > 0) {
+            highlights.push({
+                tag: 'Risk',
+                text: critical.length + ' critical and ' + high.length + ' high-risk entities need priority hardening.',
+                meta: spots.length + ' scored nodes'
+            });
+        }
+
+        var commits = l3k.commits || [];
+        if (commits.length > 0) {
+            var latest = commits[0];
+            highlights.push({
+                tag: 'Latest Commit',
+                text: (latest.author || 'Unknown') + ' changed ' + safeNum(latest.filesChanged) + ' files: ' + (latest.message || 'No message'),
+                meta: toShortDate(latest.date)
+            });
+        }
+
+        var highImpact = l3b.highImpactCommits || [];
+        if (highImpact.length > 0) {
+            var topImpact = highImpact[0];
+            highlights.push({
+                tag: 'Blast Radius',
+                text: 'Highest-impact commit touches ' + safeNum(topImpact.blastRadius) + ' files transitively.',
+                meta: (topImpact.hash || '').slice(0, 7) + ' by ' + (topImpact.author || 'unknown')
+            });
+        }
+
+        var hotFiles = l3c.hotFiles || [];
+        if (hotFiles.length > 0) {
+            var firstHot = hotFiles[0];
+            highlights.push({
+                tag: 'Hotspot',
+                text: hotFiles.length + ' files are high-churn. Top volatile file: ' + fname(firstHot.file || 'unknown') + '.',
+                meta: 'focus test coverage'
+            });
+        }
+
+        var strongPairs = l3p.stronglyCoupled || [];
+        if (strongPairs.length > 0) {
+            var pair = strongPairs[0];
+            var pct = Math.round(safeNum(pair.couplingStrength) * 100);
+            highlights.push({
+                tag: 'Coupling',
+                text: fname(pair.fileA) + ' and ' + fname(pair.fileB) + ' co-change at ' + pct + '% strength.',
+                meta: safeNum(pair.coChanges) + ' co-change commits'
+            });
+        }
+
+        var contributors = l3u.contributors || [];
+        if (contributors.length > 0) {
+            var topContributor = contributors[0];
+            highlights.push({
+                tag: 'Ownership',
+                text: 'Top contributor is ' + (topContributor.name || 'Unknown') + ' with ' + safeNum(topContributor.commits) + ' commits.',
+                meta: contributors.length + ' contributors total'
+            });
+        }
+
+        if (highlights.length === 0) {
+            listEl.innerHTML = '<div class="empty-state">No highlight signals yet. Run analysis to populate key moments.</div>';
+            return;
+        }
+
+        highlights = highlights.slice(0, 6);
+        var html = '';
+        for (var i = 0; i < highlights.length; i++) {
+            html += highlightItem(highlights[i].tag, highlights[i].text, highlights[i].meta);
+        }
+        listEl.innerHTML = html;
+    }
+
     /* ── METRIC CARDS ────────────────────────────── */
     var metricDefs = [
-        { id: 'risk',       icon: '🛡️', title: 'Risk Hotspots',       desc: 'Identifies bug-prone code by combining complexity, high churn, and tight coupling into a single RPI score.' },
-        { id: 'complexity', icon: '🧠', title: 'Code Complexity',     desc: 'Highlights functions with excessive branching (Cyclomatic > 10) requiring refactoring for maintainability.' },
-        { id: 'churn',      icon: '⏱️', title: 'File Churn',          desc: 'Reveals structurally volatile files or stale code blocks to track accumulating technical debt.' },
-        { id: 'blast',      icon: '📡', title: 'Blast Radius',        desc: 'Calculates transitive impact across imports, spotting modules that break distant systems when modified.' },
-        { id: 'coupling',   icon: '🪢', title: 'Hidden Coupling',     desc: 'Detects file pairs that frequently change together in Git to expose implicit, undocumented dependencies.' },
-        { id: 'entities',   icon: '🏗️', title: 'Code Entities',       desc: 'Catalogs all parsed structural boundaries (functions, classes) to fuel the semantic knowledge graph.' }
+        { id: 'risk',       icon: 'RK', title: 'Risk Hotspots',       desc: 'Identifies bug-prone code by combining complexity, high churn, and tight coupling into a single RPI score.' },
+        { id: 'complexity', icon: 'CX', title: 'Code Complexity',     desc: 'Highlights functions with excessive branching (Cyclomatic > 10) requiring refactoring for maintainability.' },
+        { id: 'churn',      icon: 'CH', title: 'File Churn',          desc: 'Reveals structurally volatile files or stale code blocks to track accumulating technical debt.' },
+        { id: 'blast',      icon: 'BR', title: 'Blast Radius',        desc: 'Calculates transitive impact across imports, spotting modules that break distant systems when modified.' },
+        { id: 'coupling',   icon: 'CP', title: 'Hidden Coupling',     desc: 'Detects file pairs that frequently change together in Git to expose implicit, undocumented dependencies.' },
+        { id: 'entities',   icon: 'EN', title: 'Code Entities',       desc: 'Catalogs all parsed structural boundaries (functions, classes) to fuel the semantic knowledge graph.' }
     ];
+
+
 
     function renderMetricCards() {
         var grid = document.getElementById('metric-grid');
@@ -524,7 +735,13 @@ export function getPanelHTML(): string {
             }
             return fns + ' functions, ' + cls + ' classes';
         }
+        if (id === 'metadata') {
+            var l1 = dashData.l1_manifest;
+            if (!l1) return 'No data';
+            return (l1.primaryLanguage || 'Unknown') + ' | ' + (l1.metrics?.totalFiles || 0) + ' files';
+        }
         return 'No data';
+
     }
 
     /* ── DETAIL PANEL ────────────────────────────── */
@@ -571,7 +788,7 @@ export function getPanelHTML(): string {
         else if (id === 'complexity') {
             var l2c = dashData.l2_complexity;
             var fns = (l2c && l2c.functions) || [];
-            h += '<div class="detail-header"><h2>📊 Cyclomatic Complexity</h2>';
+            h += '<div class="detail-header"><h2>Cyclomatic Complexity</h2>';
             h += '<p>Cyclomatic complexity measures the number of independent paths through a function. Values above 10 indicate functions that are harder to test and maintain. Each branch (if, for, while, switch case, catch, ternary, &&, ||) adds one to the count.</p></div>';
             var complex = 0;
             for (var a=0;a<fns.length;a++) { if (fns[a].cyclomatic > 10) complex++; }
@@ -613,7 +830,7 @@ export function getPanelHTML(): string {
         else if (id === 'blast') {
             var l3b = dashData.l3_blast;
             var commits = (l3b && l3b.highImpactCommits) || [];
-            h += '<div class="detail-header"><h2>💥 Blast Radius Analysis</h2>';
+            h += '<div class="detail-header"><h2>Blast Radius Analysis</h2>';
             h += '<p>Blast radius measures how many files are transitively affected when a commit changes a file. It follows the import graph — if file A imports B which imports C, changing C has a blast radius covering A and B. High blast radius commits are risky because a single bug can propagate widely.</p></div>';
             h += '<div class="detail-insights">';
             h += insightChip(safeNum(l3b && l3b.avgBlastRadius).toFixed(1), 'Avg Radius');
@@ -675,7 +892,73 @@ export function getPanelHTML(): string {
             h += '</tbody></table></div></div>';
         }
 
+        else if (id === 'metadata') {
+            var l1 = dashData.l1_manifest;
+            if (!l1) { h += '<div class="empty-state">No Layer 1 metadata found.</div>'; return h; }
+            
+            h += '<div class="detail-header"><h2>Repository Metadata</h2>';
+            h += '<p>Detailed analysis from Phase 1 — including language distribution, execution model inference, entry points, and framework detection.</p></div>';
+
+            h += '<div class="detail-insights">';
+            h += insightChip(l1.primaryLanguage || 'N/A', 'Primary');
+            h += insightChip(l1.executionModel?.model || 'N/A', 'Exec Model');
+            h += insightChip(l1.frameworks?.totalFound || 0, 'Frameworks');
+            h += insightChip(l1.entryPoints?.totalFound || 0, 'Entry Points');
+            h += '</div>';
+
+            h += '<div class="detail-header"><h3>Language Distribution</h3></div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Language</th><th>Files</th><th>Percentage</th></tr></thead><tbody>';
+            var langs = (l1.languages && l1.languages.languages) || [];
+            for (var lang of langs) {
+                h += '<tr><td><strong>'+esc(lang.name)+'</strong></td><td>'+lang.fileCount+'</td><td>'+lang.percentage.toFixed(1)+'%</td></tr>';
+            }
+            h += '</tbody></table></div></div><br>';
+
+            h += '<div class="detail-header"><h3>Inferred Entry Points</h3></div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>File</th><th>Type</th><th>Confidence</th><th>Language</th></tr></thead><tbody>';
+            var eps = (l1.entryPoints && l1.entryPoints.entryPoints) || [];
+            for (var ep of eps) {
+                h += '<tr><td>'+esc(fname(ep.file))+'</td><td><span class="tag info">'+ep.type+'</span></td><td>'+ep.confidence+'</td><td>'+ep.language+'</td></tr>';
+            }
+            h += '</tbody></table></div></div><br>';
+
+            h += '<div class="detail-header"><h3>Detected Frameworks</h3></div>';
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Name</th><th>Type</th><th>Language</th><th>Detection Source</th></tr></thead><tbody>';
+            var fws = (l1.frameworks && l1.frameworks.frameworks) || [];
+            for (var fw of fws) {
+                h += '<tr><td><strong>'+esc(fw.name)+'</strong></td><td>'+fw.type+'</td><td>'+fw.language+'</td><td>'+esc(fname(fw.source))+'</td></tr>';
+            }
+            h += '</tbody></table></div></div><br>';
+
+            h += '<div class="detail-header"><h3>Layer 2 Code Architecture</h3></div>';
+            var l2e = dashData.l2_entities || { entities: [] };
+            var ents = l2e.entities || [];
+            var counts = { function:0, class:0, interface:0, method:0, import:0, other:0 };
+            for (var ent of ents) {
+                if (counts[ent.type] !== undefined) counts[ent.type]++;
+                else counts.other++;
+            }
+            h += '<div class="detail-insights">';
+            h += insightChip(counts.function, 'Functions', '#4a9eff');
+            h += insightChip(counts.class, 'Classes', '#a855f7');
+            h += insightChip(counts.method, 'Methods', '#51CF66');
+            h += insightChip(counts.interface, 'Interfaces', '#FFD43B');
+            h += insightChip(counts.import || 'N/A', 'Imports', '#858585');
+            h += '</div>';
+
+            h += '<div class="detail-table-wrap"><div class="scroll-area"><table><thead><tr><th>Entity Category</th><th>Total Count</th><th>Architectural Impact</th></tr></thead><tbody>';
+            h += '<tr><td><strong>Functions</strong></td><td>'+counts.function+'</td><td>Core logic units</td></tr>';
+            h += '<tr><td><strong>Classes</strong></td><td>'+counts.class+'</td><td>State containers</td></tr>';
+            h += '<tr><td><strong>Methods</strong></td><td>'+counts.method+'</td><td>Behavioral members</td></tr>';
+            h += '<tr><td><strong>Interfaces/Types</strong></td><td>'+counts.interface+'</td><td>Structural contracts</td></tr>';
+            h += '<tr><td><strong>Imports</strong></td><td>'+(counts.import || 0)+'</td><td>Dependency fan-in</td></tr>';
+            h += '</tbody></table></div></div>';
+
+        }
+
+
         return h;
+
     }
 
     function insightChip(val, label, color) {
@@ -686,6 +969,7 @@ export function getPanelHTML(): string {
     /* ── RENDER DASHBOARD ────────────────────────── */
     function renderDashboard() {
         renderOverview();
+        renderHighlights();
         renderMetricCards();
         var l4 = dashData.l4_manifest;
         document.getElementById('btn-load-graphs').disabled = !l4;
@@ -703,16 +987,49 @@ export function getPanelHTML(): string {
         vscode.postMessage({ command: 'askGraphRAG', query: q, history: chatHistory });
         chatHistory.push({ role: 'user', content: q });
     }
+    function formatMessage(text) {
+        var html = text;
+        var bt = String.fromCharCode(96);
+        var tbt = bt + bt + bt;
+        // 1. Code Blocks
+        var cbRegex = new RegExp(tbt + '(?:\\\\w+)?\\\\n([\\\\s\\\\S]*?)\\\\n' + tbt, 'g');
+        html = html.replace(cbRegex, '<pre><code>$1</code></pre>');
+        // 2. Headings
+        html = html.replace(/^### (.*$)/gm, '<div class="h3-style">$1</div>');
+        html = html.replace(/^#### (.*$)/gm, '<div class="h4-style">$1</div>');
+        // 3. Bold (remove ** and wrap in strong)
+        html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+        // 4. Lists
+        html = html.replace(/^\\* (.*$)/gm, '<li>$1</li>');
+        html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\\/li>\\n?)+/g, function(m) { return '<ul>' + m + '</ul>'; });
+        // 5. Inline Code
+        var icRegex = new RegExp(bt + '([^' + bt + ']+)' + bt, 'g');
+        html = html.replace(icRegex, '<code>$1</code>');
+        // 6. Br
+        html = html.replace(/\\n(?!<ul|<li|<\\/ul|<\\/li|<pre|<\\/pre|<div|<\\/div)/g, '<br/>');
+        return html;
+    }
+
+
+
+
+
     var currentAiBubble = null;
     function appendChat(role, text) {
         var hist = document.getElementById('chat-history');
         var b = document.createElement('div');
         b.className = 'chat-bubble ' + role;
-        b.textContent = text;
+        if (role === 'ai') {
+            b.innerHTML = '<div class="ai-bubble-content">' + formatMessage(text) + '</div>';
+            currentAiBubble = b;
+        } else {
+            b.textContent = text;
+        }
         hist.appendChild(b);
         hist.scrollTop = hist.scrollHeight;
-        if (role === 'ai') currentAiBubble = b;
     }
+
 
     /* ── MESSAGE HANDLER ─────────────────────────── */
     window.addEventListener('message', function(e) {
@@ -753,11 +1070,18 @@ export function getPanelHTML(): string {
             if (msg.text === '...') {
                 appendChat('ai', 'Thinking...');
             } else {
-                if (currentAiBubble) currentAiBubble.textContent = msg.text;
+                if (currentAiBubble) {
+                    currentAiBubble.innerHTML = '<div class="ai-bubble-content">' + formatMessage(msg.text) + '</div>';
+                }
                 chatHistory.push({ role: 'assistant', content: msg.text });
                 document.getElementById('chat-controls').classList.remove('chat-disabled');
             }
         }
+
+        if (msg.command === 'modelSelectionUpdated') {
+            appendChat('ai', 'Model selection updated. Future AI requests will use your latest configuration.');
+        }
+
     });
 
     /* Initial data request — only to check if .ail exists */
