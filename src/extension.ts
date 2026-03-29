@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PanelManager } from './panel/panelManager';
+import { PanelManager } from './panel/panelManager.js';
 
 async function openPreferredView(context: vscode.ExtensionContext) {
     const wsf = vscode.workspace.workspaceFolders;
@@ -14,7 +14,7 @@ async function openPreferredView(context: vscode.ExtensionContext) {
     const ailRoot = path.join(workspacePath, '.ail');
 
     if (fs.existsSync(ailRoot)) {
-        const { GraphPanelManager } = await import('./panel/graphPanelManager');
+        const { GraphPanelManager } = await import('./panel/graphPanelManager.js');
         GraphPanelManager.createOrShow(context, workspacePath);
         return;
     }

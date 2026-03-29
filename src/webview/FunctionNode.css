@@ -14,11 +14,13 @@
     position: relative;
     transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
     font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    box-shadow: 0 8px 18px rgba(6, 14, 24, 0.28);
 }
 
 .function-node:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.06);
+    transform: translateY(-2px) scale(1.01);
+    filter: brightness(1.07);
+    box-shadow: 0 12px 24px rgba(6, 14, 24, 0.36);
 }
 
 .node-content {
@@ -44,9 +46,9 @@
     right: -24px;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(14, 20, 28, 0.9);
-    border: 1px solid rgba(150, 172, 198, 0.35);
-    color: #b7c8dc;
+    background: rgba(16, 27, 40, 0.92);
+    border: 1px solid rgba(182, 190, 200, 0.42);
+    color: #ccd3da;
     border-radius: 50%;
     width: 20px;
     height: 20px;
@@ -62,15 +64,15 @@
 }
 
 .expand-btn:hover {
-    background: rgba(38, 49, 64, 0.95);
-    box-shadow: 0 3px 10px rgba(6, 10, 16, 0.35);
+    background: rgba(44, 60, 79, 0.97);
+    box-shadow: 0 5px 12px rgba(6, 10, 16, 0.38);
     transform: translateY(-50%) scale(1.08);
 }
 
 .expand-btn.expanded {
-    background: rgba(143, 174, 206, 0.18);
-    color: #d6e7fa;
-    border-color: rgba(150, 172, 198, 0.45);
+    background: rgba(193, 201, 209, 0.18);
+    color: #e5eaef;
+    border-color: rgba(182, 190, 200, 0.45);
 }
 
 .expand-btn.expanded:hover {
@@ -85,12 +87,12 @@
     top: 100%;
     left: 50%;
     transform: translateX(-50%) translateY(10px);
-    background-color: #252526;
-    color: #cccccc;
+    background: rgba(17, 26, 40, 0.95);
+    color: #d5e3f0;
     text-align: left;
     padding: 8px 12px;
     border-radius: 6px;
-    border: 1px solid #454545;
+    border: 1px solid rgba(128, 160, 196, 0.38);
     z-index: 1000;
     width: max-content;
     box-shadow: 0 8px 16px rgba(0,0,0,0.5);
@@ -106,7 +108,7 @@
     margin-left: -6px;
     border-width: 6px;
     border-style: solid;
-    border-color: transparent transparent #454545 transparent;
+    border-color: transparent transparent rgba(128, 160, 196, 0.45) transparent;
 }
 
 .function-node:hover .node-tooltip {
@@ -126,7 +128,7 @@
 }
 
 .tooltip-row strong {
-    color: #9bb0c7;
+    color: #c2cbd4;
     font-weight: 500;
 }
 
@@ -138,9 +140,9 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #151b23;
-    border: 1px solid rgba(145, 168, 194, 0.55);
-    color: #c6d6e9;
+    background: rgba(20, 30, 45, 0.95);
+    border: 1px solid rgba(188, 196, 206, 0.55);
+    color: #d7dee6;
     font-size: 11px;
     font-family: 'Georgia', serif; /* For a nice 'i' serif */
     font-style: italic;
@@ -162,16 +164,16 @@
 }
 
 .info-btn:hover {
-    background: #2b3a4d;
-    color: #edf4fd;
+    background: #353b44;
+    color: #f0f3f6;
     box-shadow: 0 3px 12px rgba(6, 10, 16, 0.42);
     transform: scale(1.1);
 }
 
 .function-node.selected {
-    border-color: #9bb8d7 !important;
-    box-shadow: 0 0 0 1px rgba(155, 184, 215, 0.45), 0 6px 14px rgba(6, 10, 16, 0.35);
-    background: rgba(103, 132, 164, 0.16);
+    border-color: #cfd6de !important;
+    box-shadow: 0 0 0 1px rgba(207, 214, 222, 0.42), 0 12px 22px rgba(6, 10, 16, 0.36);
+    background: rgba(141, 151, 162, 0.2);
     transform: scale(1.02);
 }
 
@@ -183,10 +185,37 @@
     transform: translateX(-50%);
     font-size: 8px;
     font-weight: 800;
-    color: #c9daee;
+    color: #dce3eb;
     letter-spacing: 1px;
     background: rgba(30, 30, 30, 0.8);
     padding: 2px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(155, 184, 215, 0.32);
+    border: 1px solid rgba(207, 214, 222, 0.32);
+}
+
+.function-node.search-hit {
+    border-color: #7de3ff !important;
+    box-shadow: 0 0 0 1px rgba(125, 227, 255, 0.32), 0 10px 22px rgba(9, 34, 43, 0.36);
+}
+
+.function-node.search-active {
+    border-color: #ffdd8a !important;
+    box-shadow: 0 0 0 2px rgba(255, 221, 138, 0.55), 0 0 24px rgba(255, 196, 78, 0.28), 0 14px 28px rgba(8, 16, 22, 0.42);
+    transform: scale(1.04);
+}
+
+.function-node.search-active::after {
+    content: "SEARCH";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    font-weight: 800;
+    color: #ffe9b5;
+    letter-spacing: 1px;
+    background: rgba(43, 33, 12, 0.86);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 211, 127, 0.4);
 }

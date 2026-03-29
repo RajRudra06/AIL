@@ -19,28 +19,65 @@ const CustomControls = () => {
 
     const pan = (dx: number, dy: number) => {
         const { x, y, zoom } = getViewport();
-        // Moving viewport by (+dx, +dy) logically shifts the viewport right/down, meaning the graph moves left/up on the screen.
-        // We invert dx/dy to intuitively move the graph.
         setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 300 });
     };
+
+    // Keyboard shortcuts: R to recenter, +/- to zoom, arrow keys to pan
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
+
+            switch (e.key.toLowerCase()) {
+                case 'r':
+                    fitView({ duration: 500, padding: 0.15 });
+                    break;
+                case '=':
+                case '+':
+                    zoomIn({ duration: 250 });
+                    break;
+                case '-':
+                    zoomOut({ duration: 250 });
+                    break;
+                case 'arrowup':
+                    e.preventDefault();
+                    pan(0, 120);
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    pan(0, -120);
+                    break;
+                case 'arrowleft':
+                    e.preventDefault();
+                    pan(120, 0);
+                    break;
+                case 'arrowright':
+                    e.preventDefault();
+                    pan(-120, 0);
+                    break;
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [fitView, zoomIn, zoomOut, getViewport, setViewport]);
 
     return (
         <>
             {/* Zoom Controls (Bottom Left) */}
             <Panel position="bottom-left" className="control-panel d-pad-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px', justifyContent: 'center', marginLeft: '20px', marginBottom: '20px' }}>
-                <button onClick={() => zoomIn({ duration: 300 })} className="control-btn" title="Zoom In">+</button>
-                <button onClick={() => zoomOut({ duration: 300 })} className="control-btn" title="Zoom Out">-</button>
+                <button onClick={() => zoomIn({ duration: 300 })} className="control-btn" title="Zoom In (+)">+</button>
+                <button onClick={() => zoomOut({ duration: 300 })} className="control-btn" title="Zoom Out (-)">-</button>
             </Panel>
 
             {/* Pan Controls (D-Pad, Bottom Right) */}
             <Panel position="bottom-right" className="control-panel d-pad-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'center', marginRight: '20px', marginBottom: '20px' }}>
-                <button onClick={() => pan(0, 150)} className="control-btn" title="Pan Graph Down">▲</button>
+                <button onClick={() => pan(0, 150)} className="control-btn" title="Pan Up (↑)">▲</button>
                 <div style={{ display: 'flex', gap: '5px' }}>
-                    <button onClick={() => pan(150, 0)} className="control-btn" title="Pan Graph Right">◀</button>
-                    <button onClick={() => fitView({ duration: 400, padding: 0.2 })} className="control-btn center-btn" title="Center Full Graph">●</button>
-                    <button onClick={() => pan(-150, 0)} className="control-btn" title="Pan Graph Left">▶</button>
+                    <button onClick={() => pan(150, 0)} className="control-btn" title="Pan Left (←)">◀</button>
+                    <button onClick={() => fitView({ duration: 500, padding: 0.15 })} className="control-btn center-btn" title="Recenter (R)">●</button>
+                    <button onClick={() => pan(-150, 0)} className="control-btn" title="Pan Right (→)">▶</button>
                 </div>
-                <button onClick={() => pan(0, -150)} className="control-btn" title="Pan Graph Up">▼</button>
+                <button onClick={() => pan(0, -150)} className="control-btn" title="Pan Down (↓)">▼</button>
             </Panel>
         </>
     );
@@ -52,6 +89,8 @@ interface GraphLayoutProps {
     onNodeClick?: (event: React.MouseEvent, node: Node) => void;
     onNodesChange?: (changes: any[]) => void;
     onEdgesChange?: (changes: any[]) => void;
+    focusNodeId?: string;
+    focusToken?: number;
 }
 
 const nodeTypes = {
@@ -60,31 +99,73 @@ const nodeTypes = {
 
 const AutoFit: React.FC<{ nodeCount: number }> = ({ nodeCount }) => {
     const { fitView } = useReactFlow();
-    const didFitInitially = useRef(false);
+    const prevNodeCount = useRef(0);
 
     useEffect(() => {
         if (nodeCount <= 0) {
-            didFitInitially.current = false;
+            prevNodeCount.current = 0;
             return;
         }
-        if (didFitInitially.current) {
-            return;
-        }
+        // Auto-fit on first load AND when node count changes significantly (mode switch)
+        const delta = Math.abs(nodeCount - prevNodeCount.current);
+        const isSignificantChange = prevNodeCount.current === 0 || delta > 5;
+        if (!isSignificantChange) return;
+
         const timer = window.setTimeout(() => {
-            fitView({ duration: 260, padding: 0.2 });
-            didFitInitially.current = true;
-        }, 40);
+            fitView({ duration: 420, padding: 0.15 });
+            prevNodeCount.current = nodeCount;
+        }, 60);
         return () => window.clearTimeout(timer);
     }, [nodeCount, fitView]);
 
     return null;
 };
 
-export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeClick, onNodesChange, onEdgesChange }) => {
+const AutoFocusNode: React.FC<{ focusNodeId?: string; focusToken?: number }> = ({ focusNodeId, focusToken }) => {
+    const { getNode, setCenter, fitView } = useReactFlow();
+
+    useEffect(() => {
+        if (!focusNodeId) {
+            return;
+        }
+        let cancelled = false;
+        let attempts = 0;
+
+        const tryFocus = () => {
+            if (cancelled) {
+                return;
+            }
+            const node = getNode(focusNodeId);
+            if (node) {
+                const x = node.position.x + ((node.width || 180) / 2);
+                const y = node.position.y + ((node.height || 64) / 2);
+                setCenter(x, y, { duration: 340, zoom: 1.14 });
+                return;
+            }
+
+            attempts += 1;
+            if (attempts <= 6) {
+                window.setTimeout(tryFocus, 70);
+                return;
+            }
+
+            // Fallback to fitView when exact node positioning is not yet available.
+            fitView({ duration: 280, padding: 0.2 });
+        };
+
+        tryFocus();
+        return () => {
+            cancelled = true;
+        };
+    }, [focusNodeId, focusToken, getNode, setCenter, fitView]);
+
+    return null;
+};
+
+export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeClick, onNodesChange, onEdgesChange, focusNodeId, focusToken }) => {
     
-    // Default edge configurations
     const defaultEdgeOptions = {
-        type: 'smoothstep',
+        type: 'default',
         animated: false,
         style: { stroke: '#569cd6', strokeWidth: 1.5, opacity: 0.6 },
     };
@@ -99,16 +180,17 @@ export const GraphLayout: React.FC<GraphLayoutProps> = ({ nodes, edges, onNodeCl
                     onNodeClick={onNodeClick}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
-                    connectionLineType={ConnectionLineType.SmoothStep}
+                    connectionLineType={ConnectionLineType.Bezier}
                     defaultEdgeOptions={defaultEdgeOptions}
 
-                    minZoom={0.1}
-                    maxZoom={2}
-                    nodesDraggable={false} // Lock to algorithmic layout
+                    minZoom={0.05}
+                    maxZoom={4}
+                    nodesDraggable={true}
                     nodesConnectable={false}
 
                 >
                     <AutoFit nodeCount={nodes.length} />
+                    <AutoFocusNode focusNodeId={focusNodeId} focusToken={focusToken} />
 
                     <Background 
                         variant={BackgroundVariant.Dots} 

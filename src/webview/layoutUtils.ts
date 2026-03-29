@@ -77,40 +77,7 @@ export const getLayoutedElements = (
     };
   });
 
-  // Render three horizontal bounding boxes acting as architectural swimlanes
-  if (useSwimlanes) {
-    const laneSpecs = [
-      { id: 'lane_ui',    rgba: 'rgba(59, 130, 246, 0.06)', stroke: '#3b82f6', label: '🖥 View / UI Layer' },
-      { id: 'lane_logic', rgba: 'rgba(139, 92, 246, 0.06)', stroke: '#8b5cf6', label: '⚙ Controller / Business Logic' },
-      { id: 'lane_util',  rgba: 'rgba(16, 185, 129, 0.06)', stroke: '#10b981', label: '🗄 Utility / Data / I-O' }
-    ];
-
-    laneSpecs.forEach((spec) => {
-      const p = dagreGraph.node(spec.id);
-      if (p && p.width && p.height) {
-        const pad = 30;
-        layoutedNodes.push({
-          id: spec.id,
-          type: 'group',
-          position: { x: p.x - p.width / 2 - pad, y: p.y - p.height / 2 - pad - 28 },
-          style: {
-            width: p.width + pad * 2,
-            height: p.height + pad * 2 + 28,
-            backgroundColor: spec.rgba,
-            borderColor: spec.stroke,
-            borderStyle: 'dashed',
-            borderWidth: 2,
-            borderRadius: '14px',
-            zIndex: -1,
-            pointerEvents: 'none' as any,
-          },
-          data: { label: spec.label },
-          draggable: false,
-          selectable: false,
-        } as unknown as Node);
-      }
-    });
-  }
+  // Keep lane-based ordering via dagre compound parents, but do not render visible lane boxes.
 
   return { nodes: layoutedNodes, edges };
 };

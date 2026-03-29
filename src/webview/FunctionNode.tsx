@@ -16,6 +16,9 @@ export interface FunctionNodeData {
     onClick?: (file: string, line: number) => void;
     onExplain?: (nodeId: string, label: string, file: string) => void;
     metadata?: any;
+    viewMode?: 'function' | 'directory' | 'sequence' | 'overall';
+    searchHit?: boolean;
+    searchActive?: boolean;
 }
 
 
@@ -30,12 +33,12 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
     // Depth-based palette to make graph traversal levels visually obvious.
     const getDepthColor = (depth: number) => {
         const palette = [
-            { bg: 'rgba(56, 189, 248, 0.12)', border: '#38bdf8', text: '#e0f2fe', glow: 'rgba(56, 189, 248, 0.18)' },
-            { bg: 'rgba(52, 211, 153, 0.12)', border: '#34d399', text: '#d1fae5', glow: 'rgba(52, 211, 153, 0.18)' },
-            { bg: 'rgba(167, 139, 250, 0.12)', border: '#a78bfa', text: '#ede9fe', glow: 'rgba(167, 139, 250, 0.18)' },
-            { bg: 'rgba(245, 158, 11, 0.12)', border: '#f59e0b', text: '#fef3c7', glow: 'rgba(245, 158, 11, 0.18)' },
-            { bg: 'rgba(249, 115, 22, 0.12)', border: '#f97316', text: '#ffedd5', glow: 'rgba(249, 115, 22, 0.18)' },
-            { bg: 'rgba(239, 68, 68, 0.12)', border: '#ef4444', text: '#fee2e2', glow: 'rgba(239, 68, 68, 0.18)' },
+            { bg: 'rgba(94, 200, 255, 0.14)', border: '#5ec8ff', text: '#e6f8ff', glow: 'rgba(94, 200, 255, 0.2)' },
+            { bg: 'rgba(98, 224, 193, 0.14)', border: '#62e0c1', text: '#e9fff8', glow: 'rgba(98, 224, 193, 0.2)' },
+            { bg: 'rgba(179, 140, 255, 0.14)', border: '#b38cff', text: '#f2ebff', glow: 'rgba(179, 140, 255, 0.2)' },
+            { bg: 'rgba(255, 198, 109, 0.14)', border: '#ffc66d', text: '#fff5e4', glow: 'rgba(255, 198, 109, 0.2)' },
+            { bg: 'rgba(255, 159, 95, 0.14)', border: '#ff9f5f', text: '#fff0e5', glow: 'rgba(255, 159, 95, 0.2)' },
+            { bg: 'rgba(255, 112, 112, 0.14)', border: '#ff7070', text: '#ffeaea', glow: 'rgba(255, 112, 112, 0.2)' },
         ];
 
         const normalizedDepth = Math.max(1, Math.min(depth || 1, palette.length));
@@ -43,15 +46,20 @@ export const FunctionNode: React.FC<{ data: FunctionNodeData, id: string; select
     };
 
     const colors = getDepthColor(data.depth || 1);
+    const viewAccent = data.viewMode === 'sequence'
+        ? 'rgba(248, 179, 103, 0.26)'
+        : data.viewMode === 'directory'
+            ? 'rgba(122, 182, 255, 0.24)'
+            : 'rgba(99, 210, 255, 0.24)';
 
     return (
         <div 
-            className={`function-node ${selected ? 'selected' : ''}`} 
+            className={`function-node ${selected ? 'selected' : ''} ${data.searchHit ? 'search-hit' : ''} ${data.searchActive ? 'search-active' : ''}`} 
             style={{ 
                 backgroundColor: colors.bg, 
                 borderColor: colors.border,
                 color: colors.text,
-                boxShadow: `0 4px 10px rgba(5, 9, 14, 0.25), inset 0 0 0 1px ${colors.glow}`
+                boxShadow: `0 4px 10px rgba(5, 9, 14, 0.25), inset 0 0 0 1px ${colors.glow}, 0 0 0 1px ${viewAccent}`
             }}
         >
 

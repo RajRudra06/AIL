@@ -210,8 +210,31 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
     if (fs.existsSync(complexityPath)) {
         const complexityData = JSON.parse(fs.readFileSync(complexityPath, 'utf-8'));
         for (const fn of complexityData.functions || []) {
-            const key = `${fn.file}::${fn.name}`;
-            complexityMap.set(key, fn.cyclomaticComplexity || 1);
+            const fnName = fn.name || fn.entityName || '';
+            const key = `${fn.file}::${fnName}`;
+            const score = fn.cyclomaticComplexity || fn.cyclomatic || 1;
+            if (fnName) {
+                complexityMap.set(key, score);
+            }
+        }
+    }
+
+    // ── Structural signal from call graph degree ──
+    const structuralDegreeMap = new Map<string, number>();
+    for (const node of nodes) {
+        if (node.type === 'function' || node.type === 'method') {
+            structuralDegreeMap.set(node.id, 0);
+        }
+    }
+    for (const edge of edges) {
+        if (edge.type !== 'calls') {
+            continue;
+        }
+        if (structuralDegreeMap.has(edge.source)) {
+            structuralDegreeMap.set(edge.source, (structuralDegreeMap.get(edge.source) || 0) + edge.weight);
+        }
+        if (structuralDegreeMap.has(edge.target)) {
+            structuralDegreeMap.set(edge.target, (structuralDegreeMap.get(edge.target) || 0) + edge.weight);
         }
     }
 
@@ -220,17 +243,23 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
     const rawComplexities: number[] = [];
     const rawChurns: number[] = [];
     const rawCouplings: number[] = [];
+    const rawStructural: number[] = [];
 
     for (const node of nodes) {
         if (node.type === 'function' || node.type === 'method') {
             const cKey = node.file ? `${node.file}::${node.name}` : node.id;
-            const complexity = complexityMap.get(cKey) || complexityMap.get(node.id) || 1;
+            const complexity = complexityMap.get(cKey)
+                || complexityMap.get(node.id)
+                || (typeof node.metadata.complexity === 'number' ? node.metadata.complexity : undefined)
+                || Math.max(1, Math.round((structuralDegreeMap.get(node.id) || 0) * 0.75));
             const fileChurn = node.file ? (churnMap.get(node.file)?.churnScore || 0) : 0;
             const coupling = node.file ? (couplingMap.get(node.file) || 0) : 0;
+            const structural = structuralDegreeMap.get(node.id) || 0;
 
             rawComplexities.push(complexity);
             rawChurns.push(fileChurn);
             rawCouplings.push(coupling);
+            rawStructural.push(structural);
         }
     }
 
@@ -238,6 +267,9 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
     const normalize = (val: number, arr: number[], baselineMax: number): number => {
         const min = Math.min(...arr);
         const max = Math.max(...arr);
+        if (!Number.isFinite(min) || !Number.isFinite(max)) {
+            return 0;
+        }
         if (max === min) {
             // Fallback: If all values are the same, use an absolute scale against a baseline max
             return Math.min(1, val / baselineMax);
@@ -245,25 +277,58 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
         return (val - min) / (max - min);
     };
 
+    const rpiByNodeId = new Map<string, number>();
+
     for (const node of nodes) {
         if (node.type === 'function' || node.type === 'method') {
             const cKey = node.file ? `${node.file}::${node.name}` : node.id;
-            const complexity = complexityMap.get(cKey) || complexityMap.get(node.id) || 1;
+            const complexity = complexityMap.get(cKey)
+                || complexityMap.get(node.id)
+                || (typeof node.metadata.complexity === 'number' ? node.metadata.complexity : undefined)
+                || Math.max(1, Math.round((structuralDegreeMap.get(node.id) || 0) * 0.75));
             const fileChurn = node.file ? (churnMap.get(node.file)?.churnScore || 0) : 0;
             const coupling = node.file ? (couplingMap.get(node.file) || 0) : 0;
+            const structural = structuralDegreeMap.get(node.id) || 0;
 
-            // Complexity baseline 10, Churn 5, Coupling 0.5
+            // Complexity baseline 10, Churn 5, Coupling 0.5, Structural 8
             const normComplexity = normalize(complexity, rawComplexities, 10);
             const normChurn = normalize(fileChurn, rawChurns, 5);
             const normCoupling = normalize(coupling, rawCouplings, 0.5);
+            const normStructural = normalize(structural, rawStructural, 8);
 
-            const rpi = parseFloat(((normComplexity * 0.4) + (normChurn * 0.4) + (normCoupling * 0.2)).toFixed(3));
+            const rpi = parseFloat(((normComplexity * 0.35) + (normChurn * 0.25) + (normCoupling * 0.2) + (normStructural * 0.2)).toFixed(3));
 
             node.metadata.riskScore = rpi;
-            node.metadata.riskLevel = rpi >= 0.75 ? 'critical' : rpi >= 0.5 ? 'high' : rpi >= 0.25 ? 'medium' : 'low';
             node.metadata.complexity = complexity;
             node.metadata.fileChurn = fileChurn;
             node.metadata.coupling = coupling;
+            node.metadata.structuralRisk = structural;
+            rpiByNodeId.set(node.id, rpi);
+        }
+    }
+
+    // Percentile thresholds keep risk tiers meaningful across diverse repos.
+    const rpiValues = Array.from(rpiByNodeId.values()).sort((a, b) => a - b);
+    const percentile = (arr: number[], p: number): number => {
+        if (arr.length === 0) { return 0; }
+        const idx = Math.max(0, Math.min(arr.length - 1, Math.floor(p * (arr.length - 1))));
+        return arr[idx];
+    };
+
+    const criticalThreshold = Math.max(0.75, percentile(rpiValues, 0.9));
+    const highThreshold = Math.max(0.5, percentile(rpiValues, 0.75));
+    const mediumThreshold = Math.max(0.25, percentile(rpiValues, 0.5));
+
+    for (const node of nodes) {
+        if (node.type === 'function' || node.type === 'method') {
+            const rpi = rpiByNodeId.get(node.id) || 0;
+            node.metadata.riskLevel = rpi >= criticalThreshold
+                ? 'critical'
+                : rpi >= highThreshold
+                    ? 'high'
+                    : rpi >= mediumThreshold
+                        ? 'medium'
+                        : 'low';
         }
     }
 

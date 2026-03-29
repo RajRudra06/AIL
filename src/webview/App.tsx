@@ -21,13 +21,20 @@ const MAX_LAYOUT_EDGES_FOR_DAGRE = 1400;
 const INITIAL_FUNCTION_DEPTH = 2;
 
 const DEPTH_COLOR_LEGEND = [
-    { depth: 1, color: '#38bdf8' },
-    { depth: 2, color: '#34d399' },
-    { depth: 3, color: '#a78bfa' },
-    { depth: 4, color: '#f59e0b' },
-    { depth: 5, color: '#f97316' },
-    { depth: 6, color: '#ef4444' },
+    { depth: 1, color: '#5ec8ff' },
+    { depth: 2, color: '#62e0c1' },
+    { depth: 3, color: '#b38cff' },
+    { depth: 4, color: '#ffc66d' },
+    { depth: 5, color: '#ff9f5f' },
+    { depth: 6, color: '#ff7070' },
 ];
+
+const EDGE_THEME: Record<GraphViewMode, string> = {
+    function: '#63d2ff',
+    directory: '#7ab6ff',
+    sequence: '#f8b367',
+    overall: '#7fa6cf',
+};
 
 const App: React.FC = () => {
 
@@ -38,7 +45,7 @@ const App: React.FC = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [rightSidebarWidth, setRightSidebarWidth] = useState(420);
     const [isChatPanelOpen, setIsChatPanelOpen] = useState(true);
-    const [rightPanelTab, setRightPanelTab] = useState<'summary' | 'chat'>('summary');
+    const [rightPanelTab, setRightPanelTab] = useState<'summary' | 'chat' | 'info'>('summary');
     const [chatNode, setChatNode] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [searchResults, setSearchResults] = useState<Node[]>([]);
@@ -61,6 +68,10 @@ const App: React.FC = () => {
     const [isOverviewOverlayOpen, setIsOverviewOverlayOpen] = useState<boolean>(false);
     const [dashboardOverview, setDashboardOverview] = useState<any>(null);
     const [tuckedIndependentCount, setTuckedIndependentCount] = useState<number>(0);
+    const [aiConfig, setAiConfig] = useState<{ provider: string; model: string; configured: boolean } | null>(null);
+    const [activeSearchNodeId, setActiveSearchNodeId] = useState<string | null>(null);
+    const [searchFocusTick, setSearchFocusTick] = useState<number>(0);
+    const [currentQueryText, setCurrentQueryText] = useState<string>('');
 
     // Use Refs to bypass stale closures for callbacks bound inside nodes
     const graphDataRef = React.useRef<any>(null);
@@ -138,6 +149,7 @@ const App: React.FC = () => {
                     console.log("React received assistant response", message.command);
                     const content = message.text || message.content;
                     setIsLoadingChat(false);
+                    setCurrentQueryText('');
                     if (content) {
                         setChatHistory(prev => {
                             // Quick safety check: if the last message is assistant and has identical content, skip
@@ -150,6 +162,16 @@ const App: React.FC = () => {
                             return [...prev, { role: 'assistant', content }];
                         });
                     }
+                    break;
+                case 'aiConfig':
+                    setAiConfig(message.data || null);
+                    break;
+                case 'aiConfigUpdated':
+                    setAiConfig(message.data || null);
+                    setChatHistory(prev => [...prev, {
+                        role: 'assistant',
+                        content: `AI settings updated: provider ${message.data?.provider || 'unknown'} · model ${message.data?.model || 'unknown'}`
+                    }]);
                     break;
 
 
@@ -168,6 +190,7 @@ const App: React.FC = () => {
 
         // Explicit ready ping helps avoid races where host sends before listeners settle.
         window.vscode.postMessage({ command: 'graphWebviewReady' });
+        window.vscode.postMessage({ command: 'getAiConfig' });
 
         let attempts = 0;
         const maxAttempts = 8;
@@ -209,6 +232,68 @@ const App: React.FC = () => {
             initializeGraph(graphData, viewMode, 'sequence');
         }
     }, [sequenceEdgeMode]);
+
+    const computeSearchResults = (query: string): Node[] => {
+        const q = query.trim().toLowerCase();
+        if (!q) {
+            return [];
+        }
+        return nodes.filter((n) => {
+            const label = String((n.data as any)?.label || '').toLowerCase();
+            const file = String((n.data as any)?.file || '').toLowerCase();
+            return label.includes(q) || file.includes(q) || n.id.toLowerCase().includes(q);
+        });
+    };
+
+    const focusSearchResult = (index: number, resultList: Node[]) => {
+        if (resultList.length === 0) {
+            setCurrentSearchIndex(-1);
+            setActiveSearchNodeId(null);
+            return;
+        }
+        const nextIndex = ((index % resultList.length) + resultList.length) % resultList.length;
+        const node = resultList[nextIndex];
+        setCurrentSearchIndex(nextIndex);
+        setActiveSearchNodeId(node.id);
+        setSearchFocusTick((v) => v + 1);
+    };
+
+    useEffect(() => {
+        const results = computeSearchResults(searchQuery);
+        setSearchResults(results);
+        if (results.length === 0) {
+            setCurrentSearchIndex(-1);
+            setActiveSearchNodeId(null);
+            return;
+        }
+        if (!activeSearchNodeId || !results.some(r => r.id === activeSearchNodeId)) {
+            focusSearchResult(0, results);
+        }
+    }, [searchQuery, nodes]);
+
+    useEffect(() => {
+        const resultIds = new Set(searchResults.map(r => r.id));
+        setNodes((nds) => {
+            let changed = false;
+            const updated = nds.map((n) => {
+                const searchHit = resultIds.has(n.id);
+                const searchActive = activeSearchNodeId === n.id;
+                if ((n.data as any)?.searchHit === searchHit && (n.data as any)?.searchActive === searchActive) {
+                    return n;
+                }
+                changed = true;
+                return {
+                    ...n,
+                    data: {
+                        ...(n.data as any),
+                        searchHit,
+                        searchActive,
+                    }
+                };
+            });
+            return changed ? updated : nds;
+        });
+    }, [searchResults, activeSearchNodeId]);
 
 
     const onNodesChange = (changes: NodeChange[]) => {
@@ -263,7 +348,8 @@ const App: React.FC = () => {
                 onExplain: handleExplainFunction,
                 params: nodeData.params || [],
                 metadata: nodeData.metadata || {},
-                addedByExpand: Boolean(nodeData.addedByExpand)
+                addedByExpand: Boolean(nodeData.addedByExpand),
+                viewMode: graphViewMode,
             }
         };
     };
@@ -329,14 +415,98 @@ const App: React.FC = () => {
         });
     };
 
+    const arrangeComponentsSideBySide = (inputNodes: Node[], inputEdges: Edge[]): Node[] => {
+        if (inputNodes.length <= 1) {
+            return inputNodes;
+        }
+
+        const nodeIds = new Set(inputNodes.map(n => n.id));
+        const adjacency = new Map<string, Set<string>>();
+        const nodeById = new Map(inputNodes.map(n => [n.id, n]));
+
+        inputNodes.forEach(n => adjacency.set(n.id, new Set<string>()));
+        inputEdges.forEach(e => {
+            if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) {
+                return;
+            }
+            adjacency.get(e.source)?.add(e.target);
+            adjacency.get(e.target)?.add(e.source);
+        });
+
+        const components: string[][] = [];
+        const seen = new Set<string>();
+
+        for (const n of inputNodes) {
+            if (seen.has(n.id)) {
+                continue;
+            }
+            const queue = [n.id];
+            seen.add(n.id);
+            const comp: string[] = [];
+
+            while (queue.length > 0) {
+                const id = queue.shift()!;
+                comp.push(id);
+                for (const next of (adjacency.get(id) || new Set<string>())) {
+                    if (!seen.has(next)) {
+                        seen.add(next);
+                        queue.push(next);
+                    }
+                }
+            }
+
+            components.push(comp);
+        }
+
+        const idToPosition = new Map<string, { x: number; y: number }>();
+        let offsetX = 48;
+        const gutterX = 220;
+        const baseY = 58;
+
+        components.forEach((component) => {
+            const compNodes = component
+                .map(id => nodeById.get(id))
+                .filter((n): n is Node => Boolean(n));
+
+            if (compNodes.length === 0) {
+                return;
+            }
+
+            const xs = compNodes.map(n => n.position.x);
+            const ys = compNodes.map(n => n.position.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+
+            compNodes.forEach((node) => {
+                idToPosition.set(node.id, {
+                    x: (node.position.x - minX) + offsetX,
+                    y: (node.position.y - minY) + baseY,
+                });
+            });
+
+            const compWidth = Math.max(220, (maxX - minX) + 180);
+            offsetX += compWidth + gutterX;
+        });
+
+        return inputNodes.map(node => ({
+            ...node,
+            position: idToPosition.get(node.id) || node.position
+        }));
+    };
+
     const finalizeLayout = (
         builtNodes: Node[],
         builtEdges: Edge[],
         direction: 'LR' | 'TB',
-        useSwimlanes: boolean
+        useSwimlanes: boolean,
+        spreadDisconnectedHorizontally: boolean = false
     ) => {
         if (builtNodes.length > MAX_LAYOUT_NODES_FOR_DAGRE || builtEdges.length > MAX_LAYOUT_EDGES_FOR_DAGRE) {
-            const fastNodes = applyFastGridLayout(builtNodes, direction);
+            let fastNodes = applyFastGridLayout(builtNodes, direction);
+            if (spreadDisconnectedHorizontally) {
+                fastNodes = arrangeComponentsSideBySide(fastNodes, builtEdges);
+            }
             const fastEdges = builtEdges.map(e => ({ ...e, animated: false }));
             setNodes(fastNodes);
             setEdges(fastEdges);
@@ -349,17 +519,31 @@ const App: React.FC = () => {
                 direction,
                 useSwimlanes
             );
-            setNodes(layoutedNodes);
-            setEdges(layoutedEdges);
-        } catch (err: any) {
-            console.error('Layout failed. Falling back to fast grid layout.', err);
-            const fastNodes = applyFastGridLayout(builtNodes, direction);
-            const fastEdges = builtEdges.map(e => ({ ...e, animated: false }));
-            setGraphLoadError('Layout fallback used for this graph density.');
-            setNodes(fastNodes);
-            setEdges(fastEdges);
+            const finalNodes = spreadDisconnectedHorizontally
+                ? arrangeComponentsSideBySide(layoutedNodes, layoutedEdges)
+                : layoutedNodes;
+        const finalEdges = layoutedEdges.filter(e => {
+            return finalNodes.some(n => n.id === e.source) && finalNodes.some(n => n.id === e.target);
+        });
+
+        setNodes(finalNodes);
+        setEdges(finalEdges);
+    } catch (err: any) {
+        console.error('Layout failed. Falling back to fast grid layout.', err);
+        let fastNodes = applyFastGridLayout(builtNodes, direction);
+        if (spreadDisconnectedHorizontally) {
+            fastNodes = arrangeComponentsSideBySide(fastNodes, builtEdges);
         }
-    };
+        const finalIds = new Set(fastNodes.map(n => n.id));
+        const fastEdges = builtEdges
+            .filter(e => finalIds.has(e.source) && finalIds.has(e.target))
+            .map(e => ({ ...e, animated: false }));
+
+        setGraphLoadError('Layout fallback used for this graph density.');
+        setNodes(fastNodes);
+        setEdges(fastEdges);
+    }
+};
 
     const initializeGraph = (
         data: any,
@@ -369,7 +553,28 @@ const App: React.FC = () => {
         if (!data || !data.graph || !data.graph.nodes) return;
 
         const nodesData: any[] = data.graph.nodes;
-        const edgesData: any[] = data.graph.edges || [];
+        const rawEdgesData: any[] = data.graph.edges || [];
+        const nodeIdSet = new Set(nodesData.map((n: any) => String(n.id || '')));
+        const seenEdgeKeys = new Set<string>();
+        const edgesData: any[] = rawEdgesData
+            .map((e: any) => ({ ...e, source: String(e?.source || ''), target: String(e?.target || '') }))
+            .filter((e: any) => {
+                if (!e.source || !e.target) {
+                    return false;
+                }
+                if (!nodeIdSet.has(e.source) || !nodeIdSet.has(e.target)) {
+                    return false;
+                }
+                if (e.source === e.target) {
+                    return false;
+                }
+                const key = `${e.source}->${e.target}::${String(e.type || 'calls')}`;
+                if (seenEdgeKeys.has(key)) {
+                    return false;
+                }
+                seenEdgeKeys.add(key);
+                return true;
+            });
 
         setRelationshipTotal(nodesData.length);
         setIndependentTotal(nodesData.length);
@@ -462,9 +667,9 @@ const App: React.FC = () => {
                     target: e.target,
                     type: 'default',
                     animated: true,
-                    style: { stroke: '#7fa6cf', strokeWidth: 1.5, opacity: 0.7 }
+                    style: { stroke: EDGE_THEME.function, strokeWidth: 1.6, opacity: 0.78 }
                 }));
-                finalizeLayout(builtNodes, builtEdges, 'LR', true);
+                finalizeLayout(builtNodes, builtEdges, 'LR', true, true);
                 return;
             }
 
@@ -558,9 +763,9 @@ const App: React.FC = () => {
                 target: e.target,
                 type: 'default',
                 animated: true,
-                style: { stroke: '#7fa6cf', strokeWidth: 1.5, opacity: 0.7 }
+                style: { stroke: EDGE_THEME.function, strokeWidth: 1.6, opacity: 0.78 }
             }));
-            finalizeLayout(builtNodes, builtEdges, 'LR', true);
+            finalizeLayout(builtNodes, builtEdges, 'LR', true, true);
             return;
         }
 
@@ -643,6 +848,7 @@ const App: React.FC = () => {
             const builtNodes: Node[] = [];
             let componentXOffset = 80;
             const backboneEdgesAccumulator: any[] = [];
+            let usedSyntheticBackbone = false;
 
             focusedComponents.forEach((comp) => {
                 const compSet = new Set(comp);
@@ -651,6 +857,7 @@ const App: React.FC = () => {
                 // Build a spanning-forest style backbone so sequence is meaningfully different from function view.
                 const outBySource = new Map<string, string[]>();
                 const inByTarget = new Map<string, string[]>();
+                const edgeTypeByPair = new Map<string, string>();
                 comp.forEach(id => {
                     outBySource.set(id, []);
                     inByTarget.set(id, []);
@@ -658,6 +865,7 @@ const App: React.FC = () => {
                 compEdges.forEach((e: any) => {
                     outBySource.set(e.source, [...(outBySource.get(e.source) || []), e.target]);
                     inByTarget.set(e.target, [...(inByTarget.get(e.target) || []), e.source]);
+                    edgeTypeByPair.set(`${e.source}->${e.target}`, String(e.type || 'calls'));
                 });
 
                 const indeg = new Map<string, number>();
@@ -670,6 +878,17 @@ const App: React.FC = () => {
                         const bNode = nodeById.get(b);
                         return getNodeScore(bNode || { id: b, metadata: {} }) - getNodeScore(aNode || { id: a, metadata: {} });
                     });
+                const syntheticCompEdges = rankedCompNodes
+                    .slice(1)
+                    .map((id, i) => ({ source: rankedCompNodes[i], target: id, type: 'synthetic' }));
+                if (compEdges.length === 0 && syntheticCompEdges.length > 0) {
+                    usedSyntheticBackbone = true;
+                    syntheticCompEdges.forEach((e: any) => {
+                        outBySource.set(e.source, [...(outBySource.get(e.source) || []), e.target]);
+                        inByTarget.set(e.target, [...(inByTarget.get(e.target) || []), e.source]);
+                        edgeTypeByPair.set(`${e.source}->${e.target}`, 'synthetic');
+                    });
+                }
                 const seed = roots.length > 0 ? roots : [rankedCompNodes[0]];
 
                 const visited = new Set<string>();
@@ -696,7 +915,11 @@ const App: React.FC = () => {
                         if (!visited.has(targetId)) {
                             const alreadyHasParent = backboneEdges.some(e => e.target === targetId);
                             if (!alreadyHasParent) {
-                                backboneEdges.push({ source: item.id, target: targetId, type: 'calls' });
+                                backboneEdges.push({
+                                    source: item.id,
+                                    target: targetId,
+                                    type: edgeTypeByPair.get(`${item.id}->${targetId}`) || 'calls'
+                                });
                                 q.push({ id: targetId, level: item.level + 1 });
                             }
                         }
@@ -765,23 +988,33 @@ const App: React.FC = () => {
             });
 
             const renderedIds = new Set(builtNodes.map(n => n.id));
-            const sequenceEdgesSource = sequenceEdgeMode === 'all' ? seqEdges : backboneEdgesAccumulator;
+            const sequenceEdgesSource = sequenceEdgeMode === 'all' && seqEdges.length > 0
+                ? seqEdges
+                : backboneEdgesAccumulator;
             const builtEdges: Edge[] = sequenceEdgesSource.map((e: any) => ({
                 id: `seq-${e.source}->${e.target}`,
                 source: e.source,
                 target: e.target,
                 type: 'default',
                 animated: false,
-                label: 'call',
+                label: e.type === 'synthetic' ? 'fallback-flow' : 'call',
                 labelStyle: { fill: '#9cb4cf', fontSize: 8, fontFamily: 'system-ui' },
-                style: { stroke: '#f59e0b', strokeWidth: 1.3, opacity: 0.65 },
+                style: {
+                    stroke: e.type === 'synthetic' ? '#86a1bf' : EDGE_THEME.sequence,
+                    strokeWidth: e.type === 'synthetic' ? 1.1 : 1.3,
+                    opacity: e.type === 'synthetic' ? 0.5 : 0.65,
+                    strokeDasharray: e.type === 'synthetic' ? '4 4' : undefined,
+                },
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
-                    color: '#f59e0b',
+                    color: e.type === 'synthetic' ? '#86a1bf' : EDGE_THEME.sequence,
                     width: 16,
                     height: 16,
                 }
             })).filter((e) => renderedIds.has(e.source) && renderedIds.has(e.target));
+            if (usedSyntheticBackbone && builtEdges.length > 0) {
+                setGraphLoadError('Sequence fallback backbone used (no direct call edges detected for selected nodes).');
+            }
             setNodes(builtNodes);
             setEdges(builtEdges);
             return;
@@ -897,21 +1130,41 @@ const App: React.FC = () => {
 
         const validIds = new Set(cappedFileNodes.map((n: any) => n.id));
         const cappedFileEdges = workingEdges.filter((e: any) => validIds.has(e.source) && validIds.has(e.target));
+        const rankedFileNodeIds = cappedFileNodes
+            .slice()
+            .sort((a: any, b: any) => getImportance(b) - getImportance(a))
+            .map((n: any) => n.id);
+        const effectiveFileEdges = cappedFileEdges.length > 0
+            ? cappedFileEdges
+            : rankedFileNodeIds.slice(1).map((targetId: string, i: number) => ({
+                source: rankedFileNodeIds[i],
+                target: targetId,
+                type: 'synthetic',
+                weight: 1,
+            }));
 
-        const directoryDepthMap = computeDepthMap(cappedFileNodes, cappedFileEdges);
+        const directoryDepthMap = computeDepthMap(cappedFileNodes, effectiveFileEdges);
         const allFileNodes = cappedFileNodes.map((n: any) =>
-            buildNode(n, Math.max(1, Math.min(directoryDepthMap.get(n.id) || 1, 6)), cappedFileEdges, false, false)
+            buildNode(n, Math.max(1, Math.min(directoryDepthMap.get(n.id) || 1, 6)), effectiveFileEdges, false, false)
         );
-        const allFileEdges: Edge[] = cappedFileEdges.map((e: any) => ({
+        const allFileEdges: Edge[] = effectiveFileEdges.map((e: any) => ({
             id: `${e.source}->${e.target}`,
             source: e.source,
             target: e.target,
             type: 'default',
             animated: true,
-            label: String(e.weight || ''),
+            label: e.type === 'synthetic' ? 'fallback-flow' : String(e.weight || ''),
             labelStyle: { fill: '#8ea4bf', fontSize: 9 },
-            style: { stroke: '#7fa6cf', strokeWidth: Math.min(e.weight || 1, 3), opacity: 0.7 }
+            style: {
+                stroke: e.type === 'synthetic' ? '#93b7d9' : EDGE_THEME.directory,
+                strokeWidth: e.type === 'synthetic' ? 1.1 : Math.min(e.weight || 1, 3),
+                opacity: e.type === 'synthetic' ? 0.5 : 0.7,
+                strokeDasharray: e.type === 'synthetic' ? '4 4' : undefined,
+            }
         }));
+        if (cappedFileEdges.length === 0 && allFileEdges.length > 0) {
+            setGraphLoadError('Directory fallback backbone used (no direct inter-file call edges detected).');
+        }
         finalizeLayout(allFileNodes, allFileEdges, 'LR', false);
     };
 
@@ -980,7 +1233,7 @@ const App: React.FC = () => {
                 target: childNodeData.id,
                 type: 'default',
                 animated: true,
-                style: { stroke: '#7fa6cf', strokeWidth: 2, opacity: 0.8 }
+                style: { stroke: EDGE_THEME.function, strokeWidth: 2.1, opacity: 0.86 }
             });
         });
 
@@ -1007,7 +1260,7 @@ const App: React.FC = () => {
                     target: childNodeData.id,
                     type: 'default',
                     animated: true,
-                    style: { stroke: '#7fa6cf', strokeWidth: 2, opacity: 0.75 }
+                    style: { stroke: EDGE_THEME.function, strokeWidth: 2.0, opacity: 0.82 }
                 });
             });
         }
@@ -1160,7 +1413,7 @@ const App: React.FC = () => {
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
+        <div className="app-shell">
             <div className="header-container">
                 <div className="explorer-title">
                     <h2>
@@ -1169,7 +1422,7 @@ const App: React.FC = () => {
                     <span className="explorer-subtext">Navigate complexity, depth by depth.</span>
                 </div>
 
-                <div className="view-controls-container">
+                <div className={`view-controls-container ${graphViewMode === 'function' ? 'side-by-side-lock' : ''}`}>
                     <div className="view-section">
                         <div className="view-header">
                             <span className="view-label">View</span>
@@ -1219,12 +1472,12 @@ const App: React.FC = () => {
                                 Overall Graph
                             </button>
                         </div>
-                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#8ea4bf' }}>
+                        <div className="mode-semantics">
                             {modeSemantics[graphViewMode]}
                         </div>
                         {graphViewMode === 'sequence' && (
-                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '11px', color: '#9eb2ca' }}>Sequence Focus</span>
+                            <div className="sequence-tools">
+                                <span className="sequence-label">Sequence Focus</span>
                                 <select
                                     className="view-mode-select"
                                     value={String(sequenceFocusComponent)}
@@ -1240,7 +1493,7 @@ const App: React.FC = () => {
                                         </option>
                                     ))}
                                 </select>
-                                <span style={{ fontSize: '11px', color: '#9eb2ca' }}>Edges</span>
+                                <span className="sequence-label">Edges</span>
                                 <select
                                     className="view-mode-select"
                                     value={sequenceEdgeMode}
@@ -1252,14 +1505,7 @@ const App: React.FC = () => {
                                 {sequenceComponents.slice(0, 4).map(comp => (
                                     <span
                                         key={`pill-${comp.id}`}
-                                        style={{
-                                            fontSize: '10px',
-                                            color: '#c3d7ef',
-                                            border: '1px solid rgba(114,144,176,0.38)',
-                                            background: 'rgba(14,24,36,0.7)',
-                                            borderRadius: '999px',
-                                            padding: '3px 7px'
-                                        }}
+                                        className="sequence-pill"
                                     >
                                         Lane {comp.id}: {comp.nodes} nodes
                                     </span>
@@ -1268,13 +1514,13 @@ const App: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="view-section" style={{ marginLeft: '20px' }}>
+                    <div className="view-section view-section--visibility">
                         <div className="view-header">
                             <span className="view-label">Visibility</span>
                         </div>
                         {graphViewMode === 'overall' ? (
                             <>
-                                <div style={{ fontSize: '11px', color: '#8ea4bf', marginBottom: '4px' }}>
+                                <div className="visibility-meta">
                                     LLM Importance Stringency: {llmLimit === 1 ? 'ALL' : `>= ${llmLimit}/10`}
                                 </div>
                                 <input
@@ -1282,7 +1528,7 @@ const App: React.FC = () => {
                                     min="1"
                                     max="10"
                                     value={llmLimit}
-                                    style={{ width: '130px', accentColor: '#7fa6cf' }}
+                                    className="llm-range"
                                     onChange={e => setLlmLimit(parseInt(e.target.value))}
                                 />
                             </>
@@ -1301,19 +1547,20 @@ const App: React.FC = () => {
                                     <option value="core">Connected Core Only (&gt;=3 edges)</option>
                                     <option value="independent">Show All</option>
                                 </select>
-                                <div style={{ marginTop: '6px', fontSize: '11px', color: '#8ea4bf' }}>
+                                <div className="visibility-meta">
                                     Showing {shownForMode} of {totalForMode} nodes
                                 </div>
                                 {viewMode !== 'independent' && tuckedIndependentCount > 0 && (
-                                    <div style={{ marginTop: '4px', fontSize: '11px', color: '#8ea4bf' }}>
+                                    <div className="visibility-meta">
                                         Tucked away low-signal nodes: {tuckedIndependentCount}
                                     </div>
                                 )}
                             </>
                         )}
                     </div>
+                    <div className="header-actions">
                     <button
-                        className="sidebar-toggle-btn"
+                        className="sidebar-toggle-btn action-icon-btn"
                         title={isChatPanelOpen ? "Close Insights Panel" : "Open Insights Panel"}
                         onClick={() => {
                             if (isChatPanelOpen) {
@@ -1324,62 +1571,117 @@ const App: React.FC = () => {
                                 setIsChatPanelOpen(true);
                             }
                         }}
-                        style={{ fontWeight: 700, fontSize: '14px' }}
                     >
                         i
                     </button>
                     <button
-                        className="view-btn"
-                        style={{ marginLeft: '8px', padding: '6px 10px' }}
+                        className="view-btn secondary-action"
                         onClick={() => setIsOverviewOverlayOpen(prev => !prev)}
                     >
                         {isOverviewOverlayOpen ? 'Hide Overlay' : 'Dashboard Overlay'}
                     </button>
+                    <button
+                        className="view-btn secondary-action easter-egg-btn"
+                        onClick={() => window.vscode?.postMessage({ command: 'openGraphInBrowser' })}
+                        title="Open in browser"
+                    >
+                        <span className="easter-egg-text">Expand to HTML</span>
+                        <span className="easter-egg-subtext">try me</span>
+                    </button>
+                    <button
+                        className="view-btn secondary-action"
+                        onClick={() => window.vscode?.postMessage({ command: 'openAiSettings' })}
+                        title="Configure AI provider, model, and API keys"
+                    >
+                        AI Settings
+                    </button>
+                    {aiConfig && (
+                        <div className="selection-info" title="Current AI provider and model">
+                            <span className="selection-dot"></span>
+                            {aiConfig.provider}:{aiConfig.model}{aiConfig.configured ? '' : ' (keys missing)'}
+                        </div>
+                    )}
                     {selectedNodeIds.length > 0 && (
                         <button 
                             className="view-btn explain-selection-btn"
-                            style={{ 
-                                marginLeft: '15px', 
-                                background: 'rgba(118, 161, 203, 0.24)',
-                                color: '#dbe8f6',
-                                fontWeight: 600,
-                                border: '1px solid rgba(161, 185, 212, 0.26)',
-                                animation: 'pulse 2s infinite'
-                            }}
+                            style={{ animation: 'pulse 2s infinite' }}
                             onClick={handleExplainSelection}
                         >
                             Analyze Selection ({selectedNodeIds.length})
                         </button>
                     )}
                     {selectedNodeIds.length > 0 && (
-                        <div style={{ marginLeft: '10px', fontSize: '11px', color: '#8ea4bf', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#7fa6cf', animation: 'pulse 1s infinite' }}></span>
+                        <div className="selection-info">
+                            <span className="selection-dot"></span>
                             {selectedNodeIds.length} functions selected
                         </div>
                     )}
-                    <div style={{ marginLeft: '12px', fontSize: '11px', color: '#93a9c2', whiteSpace: 'nowrap' }}>
+                    <div className="interaction-hint">
                         Click node: jump · i: explain · Ctrl/Cmd+Click: multi-select
+                    </div>
+                    <div className="search-box">
+                        <input
+                            className="search-input"
+                            placeholder="Search node/file..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const results = searchResults;
+                                    if (results.length === 0) {
+                                        return;
+                                    }
+                                    const step = e.shiftKey ? -1 : 1;
+                                    const nextIndex = currentSearchIndex < 0
+                                        ? 0
+                                        : currentSearchIndex + step;
+                                    focusSearchResult(nextIndex, results);
+                                    setRightPanelTab('info');
+                                    setIsChatPanelOpen(true);
+                                    if (rightSidebarWidth < 320) {
+                                        setRightSidebarWidth(380);
+                                    }
+                                }
+                            }}
+                        />
+                        <button
+                            className="view-btn secondary-action"
+                            onClick={() => {
+                                if (searchResults.length === 0) { return; }
+                                focusSearchResult(currentSearchIndex + 1, searchResults);
+                            }}
+                            title="Next search result (Enter)"
+                        >
+                            Next
+                        </button>
+                        <div className="search-meta">
+                            {searchResults.length > 0
+                                ? `${Math.max(0, currentSearchIndex + 1)}/${searchResults.length}`
+                                : '0/0'}
+                        </div>
+                    </div>
                     </div>
                 </div>
             </div>
 
-            <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(112,136,160,0.2)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11px', color: '#9ab1ca' }}>
-                <span style={{ padding: '3px 8px', borderRadius: '999px', border: '1px solid rgba(113,150,186,0.35)', background: 'rgba(15,24,35,0.65)' }}>
+            <div className="stats-strip">
+                <span className="stat-chip">
                     Nodes {renderedNodes}/{fullNodes}
                 </span>
-                <span style={{ padding: '3px 8px', borderRadius: '999px', border: '1px solid rgba(113,150,186,0.35)', background: 'rgba(15,24,35,0.65)' }}>
+                <span className="stat-chip">
                     Edges {renderedEdges}/{fullEdges}
                 </span>
                 {isPruned && (
-                    <span style={{ padding: '3px 8px', borderRadius: '999px', border: '1px solid rgba(229,173,92,0.45)', background: 'rgba(65,44,12,0.35)', color: '#ffd089' }}>
+                    <span className="stat-chip stat-chip--warn">
                         Large Repo Mode Active
                     </span>
                 )}
-                <span>Render Budget</span>
+                <span className="stats-label">Render Budget</span>
                 <select
                     value={renderNodeBudget}
                     className="view-mode-select"
-                    style={{ width: '92px', minWidth: '92px', padding: '4px 6px', fontSize: '11px' }}
+                    style={{ width: '92px', minWidth: '92px' }}
                     onChange={(e) => setRenderNodeBudget(parseInt(e.target.value, 10))}
                 >
                     <option value={300}>300</option>
@@ -1388,8 +1690,7 @@ const App: React.FC = () => {
                     <option value={1200}>1200</option>
                 </select>
                 <button
-                    className="view-btn"
-                    style={{ padding: '4px 10px' }}
+                    className="view-btn secondary-action"
                     onClick={() => {
                         setGraphLoadError(null);
                         window.vscode?.postMessage({ command: 'getGraph' });
@@ -1398,7 +1699,7 @@ const App: React.FC = () => {
                     Reload Graph
                 </button>
                 {graphLoadError && (
-                    <span style={{ color: '#ffb1b1' }}>{graphLoadError}</span>
+                    <span className="stats-error">{graphLoadError}</span>
                 )}
             </div>
 
@@ -1407,26 +1708,12 @@ const App: React.FC = () => {
 
 
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
+            <div className="main-stage">
+                <div className="graph-canvas">
                     {isOverviewOverlayOpen && (
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: '14px',
-                                left: '14px',
-                                zIndex: 30,
-                                width: '340px',
-                                maxHeight: 'calc(100% - 28px)',
-                                overflowY: 'auto',
-                                background: 'rgba(10, 16, 24, 0.92)',
-                                border: '1px solid rgba(126, 158, 194, 0.35)',
-                                borderRadius: '12px',
-                                padding: '12px'
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                <div style={{ color: '#dbe8f6', fontWeight: 700, fontSize: '13px' }}>Mission Overlay</div>
+                        <div className="overview-overlay">
+                            <div className="overview-header">
+                                <div className="overview-title">Mission Overlay</div>
                                 <button
                                     className="close-panel-btn"
                                     onClick={() => setIsOverviewOverlayOpen(false)}
@@ -1436,44 +1723,44 @@ const App: React.FC = () => {
                                 </button>
                             </div>
 
-                            <div style={{ color: '#a8bfd8', fontSize: '11px', marginBottom: '8px' }}>
+                            <div className="overview-subtitle">
                                 {dashboardOverview?.projectName || 'Workspace'}
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                                <div style={{ background: 'rgba(16,25,36,0.7)', border: '1px solid rgba(100,133,167,0.3)', borderRadius: '8px', padding: '8px' }}>
-                                    <div style={{ color: '#dce9f8', fontSize: '16px', fontWeight: 700 }}>{dashboardOverview?.totalFiles || 0}</div>
-                                    <div style={{ color: '#8ea4bf', fontSize: '10px' }}>Files</div>
+                            <div className="overview-grid">
+                                <div className="overview-card">
+                                    <div className="overview-value">{dashboardOverview?.totalFiles || 0}</div>
+                                    <div className="overview-key">Files</div>
                                 </div>
-                                <div style={{ background: 'rgba(16,25,36,0.7)', border: '1px solid rgba(100,133,167,0.3)', borderRadius: '8px', padding: '8px' }}>
-                                    <div style={{ color: '#dce9f8', fontSize: '16px', fontWeight: 700 }}>{(dashboardOverview?.totalLines || 0).toLocaleString()}</div>
-                                    <div style={{ color: '#8ea4bf', fontSize: '10px' }}>Lines</div>
+                                <div className="overview-card">
+                                    <div className="overview-value">{(dashboardOverview?.totalLines || 0).toLocaleString()}</div>
+                                    <div className="overview-key">Lines</div>
                                 </div>
-                                <div style={{ background: 'rgba(16,25,36,0.7)', border: '1px solid rgba(100,133,167,0.3)', borderRadius: '8px', padding: '8px' }}>
-                                    <div style={{ color: '#fbbf24', fontSize: '16px', fontWeight: 700 }}>{dashboardOverview?.criticalRisk || 0}</div>
-                                    <div style={{ color: '#8ea4bf', fontSize: '10px' }}>Critical Risk</div>
+                                <div className="overview-card">
+                                    <div className="overview-value overview-value--warn">{dashboardOverview?.criticalRisk || 0}</div>
+                                    <div className="overview-key">Critical Risk</div>
                                 </div>
-                                <div style={{ background: 'rgba(16,25,36,0.7)', border: '1px solid rgba(100,133,167,0.3)', borderRadius: '8px', padding: '8px' }}>
-                                    <div style={{ color: '#fb7185', fontSize: '16px', fontWeight: 700 }}>{dashboardOverview?.highRisk || 0}</div>
-                                    <div style={{ color: '#8ea4bf', fontSize: '10px' }}>High Risk</div>
+                                <div className="overview-card">
+                                    <div className="overview-value overview-value--danger">{dashboardOverview?.highRisk || 0}</div>
+                                    <div className="overview-key">High Risk</div>
                                 </div>
-                                <div style={{ background: 'rgba(16,25,36,0.7)', border: '1px solid rgba(100,133,167,0.3)', borderRadius: '8px', padding: '8px' }}>
-                                    <div style={{ color: '#4ade80', fontSize: '16px', fontWeight: 700 }}>{dashboardOverview?.hotFiles || 0}</div>
-                                    <div style={{ color: '#8ea4bf', fontSize: '10px' }}>Hot Files</div>
+                                <div className="overview-card">
+                                    <div className="overview-value overview-value--good">{dashboardOverview?.hotFiles || 0}</div>
+                                    <div className="overview-key">Hot Files</div>
                                 </div>
-                                <div style={{ background: 'rgba(16,25,36,0.7)', border: '1px solid rgba(100,133,167,0.3)', borderRadius: '8px', padding: '8px' }}>
-                                    <div style={{ color: '#60a5fa', fontSize: '16px', fontWeight: 700 }}>{dashboardOverview?.strongCouplingPairs || 0}</div>
-                                    <div style={{ color: '#8ea4bf', fontSize: '10px' }}>Strong Pairs</div>
+                                <div className="overview-card">
+                                    <div className="overview-value">{dashboardOverview?.strongCouplingPairs || 0}</div>
+                                    <div className="overview-key">Strong Pairs</div>
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: '10px', color: '#8ea4bf', fontSize: '10px' }}>
+                            <div className="overview-meta">
                                 Primary language: {dashboardOverview?.primaryLanguage || 'Unknown'}
                             </div>
                             {Array.isArray(dashboardOverview?.frameworks) && dashboardOverview.frameworks.length > 0 && (
-                                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                <div className="overview-tags">
                                     {dashboardOverview.frameworks.map((fw: string, idx: number) => (
-                                        <span key={`${fw}-${idx}`} style={{ fontSize: '10px', color: '#b9d3ee', border: '1px solid rgba(112,146,181,0.35)', borderRadius: '999px', padding: '2px 7px', background: 'rgba(22,34,48,0.75)' }}>
+                                        <span key={`${fw}-${idx}`} className="overview-tag">
                                             {fw}
                                         </span>
                                     ))}
@@ -1501,10 +1788,12 @@ const App: React.FC = () => {
                             onNodeClick={handleNodeClick}
                             onNodesChange={onNodesChange}
                             onEdgesChange={onEdgesChange}
+                            focusNodeId={activeSearchNodeId || undefined}
+                            focusToken={searchFocusTick}
                         />
 
                     ) : (
-                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#888', textAlign: 'center', maxWidth: '360px' }}>
+                        <div className="graph-empty-state">
                             {graphLoadError
                                 ? graphLoadError
                                 : graphData
@@ -1514,29 +1803,15 @@ const App: React.FC = () => {
                     )}
 
                     {graphViewMode !== 'overall' && (
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: '14px',
-                                right: '14px',
-                                background: 'rgba(11, 16, 24, 0.88)',
-                                border: '1px solid rgba(126, 158, 194, 0.35)',
-                                borderRadius: '10px',
-                                padding: '10px 12px',
-                                color: '#c9d7e7',
-                                fontSize: '11px',
-                                zIndex: 25,
-                                minWidth: '170px'
-                            }}
-                        >
-                            <div style={{ fontWeight: 700, marginBottom: '8px', color: '#dbe8f6' }}>Depth Legend</div>
+                        <div className="legend-card">
+                            <div className="legend-title">Depth Legend</div>
                             {DEPTH_COLOR_LEGEND.map(item => (
-                                <div key={item.depth} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.color, border: '1px solid rgba(255,255,255,0.2)' }} />
+                                <div key={item.depth} className="legend-row">
+                                    <span className="legend-dot" style={{ background: item.color }} />
                                     <span>Depth {item.depth}</span>
                                 </div>
                             ))}
-                            <div style={{ marginTop: '6px', fontSize: '10px', color: '#8ea4bf' }}>
+                            <div className="legend-note">
                                 Sequence view is static-path inferred from call graph, not runtime trace.
                             </div>
                         </div>
@@ -1546,9 +1821,7 @@ const App: React.FC = () => {
                 {isChatPanelOpen && (
                     <div
                         title="Resize Insights Panel"
-                        style={{ width: '4px', cursor: 'col-resize', background: '#333', zIndex: 20 }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#5f7d9f'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#333'}
+                        className="resize-handle"
                         onMouseDown={(e) => { e.preventDefault(); isResizingRight.current = true; }}
                     />
                 )}
@@ -1560,7 +1833,6 @@ const App: React.FC = () => {
                         minWidth: `${rightSidebarWidth}px`,
                         overflowX: 'hidden',
                         overflowY: 'auto',
-                        background: '#12161d',
                         zIndex: 10,
                         display: 'flex',
                         flexDirection: 'column',
@@ -1568,24 +1840,31 @@ const App: React.FC = () => {
                         transition: isResizingRight.current ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderBottom: '1px solid rgba(113,150,186,0.25)' }}>
+                    <div className="right-tabs">
                         <button
                             className={`view-btn ${rightPanelTab === 'summary' ? 'active' : ''}`}
-                            style={{ padding: '5px 9px' }}
+                            style={{ padding: '5px 10px' }}
                             onClick={() => setRightPanelTab('summary')}
                         >
                             Summary
                         </button>
                         <button
                             className={`view-btn ${rightPanelTab === 'chat' ? 'active' : ''}`}
-                            style={{ padding: '5px 9px' }}
+                            style={{ padding: '5px 10px' }}
                             onClick={() => setRightPanelTab('chat')}
                         >
                             Chat
                         </button>
                         <button
+                            className={`view-btn ${rightPanelTab === 'info' ? 'active' : ''}`}
+                            style={{ padding: '5px 10px' }}
+                            onClick={() => setRightPanelTab('info')}
+                        >
+                            Info
+                        </button>
+                        <button
                             className="close-panel-btn"
-                            style={{ marginLeft: 'auto' }}
+                            style={{ marginLeft: 'auto', fontSize: '14px' }}
                             title="Close Insights Panel"
                             onClick={() => {
                                 setRightSidebarWidth(0);
@@ -1596,12 +1875,12 @@ const App: React.FC = () => {
                         </button>
                     </div>
 
-                    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div className="right-tab-content">
                         {rightPanelTab === 'summary' ? (
-                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                            <div className="summary-scroll-wrap">
                                 <SummaryPanel markdown={graphData ? graphData.report : ''} />
                             </div>
-                        ) : (
+                        ) : rightPanelTab === 'chat' ? (
                             <ChatPanel
                                 node={chatNode || { id: 'global', label: 'Architecture Chat', file: '' }}
                                 history={chatHistory}
@@ -1615,6 +1894,7 @@ const App: React.FC = () => {
                                     const updatedHistory = [...chatHistory, newMsg];
                                     setChatHistory(updatedHistory);
                                     setIsLoadingChat(true);
+                                    setCurrentQueryText(msg);
 
                                     const effectiveNode = chatNode || { id: 'global', isMulti: false, nodes: [] };
                                     window.vscode.postMessage({
@@ -1626,6 +1906,35 @@ const App: React.FC = () => {
                                     });
                                 }}
                             />
+                        ) : (
+                            <div className="summary-scroll-wrap info-panel-wrap">
+                                <div className="info-card">
+                                    <div className="info-title">Summary Status</div>
+                                    <div className="info-value">{summaryMarkdown && summaryMarkdown !== '<LOADING>' ? 'Generated' : 'Generating...'}</div>
+                                </div>
+                                <div className="info-card">
+                                    <div className="info-title">Ongoing Query</div>
+                                    <div className="info-value">{currentQueryText || (isLoadingChat ? 'Waiting for response...' : 'Idle')}</div>
+                                </div>
+                                <div className="info-card">
+                                    <div className="info-title">Node Info</div>
+                                    {(() => {
+                                        const node = nodes.find(n => n.id === activeSearchNodeId)
+                                            || nodes.find(n => selectedNodeIds.includes(n.id));
+                                        if (!node) {
+                                            return <div className="info-value">Select or search a node to inspect.</div>;
+                                        }
+                                        return (
+                                            <>
+                                                <div className="info-row"><span>Name</span><strong>{String((node.data as any)?.label || node.id)}</strong></div>
+                                                <div className="info-row"><span>File</span><strong>{String((node.data as any)?.file || 'n/a')}</strong></div>
+                                                <div className="info-row"><span>Lines</span><strong>{`${(node.data as any)?.startLine || 0}-${(node.data as any)?.endLine || 0}`}</strong></div>
+                                                <div className="info-row"><span>Depth</span><strong>{String((node.data as any)?.depth || 1)}</strong></div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
