@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useTransition, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import './App.css';
 
 import { GraphLayout } from './GraphLayout';
@@ -75,7 +75,7 @@ const App: React.FC = () => {
     const [searchFocusTick, setSearchFocusTick] = useState<number>(0);
     const [currentQueryText, setCurrentQueryText] = useState<string>('');
 
-    const [isPendingLayout, startLayoutTransition] = useTransition();
+    const [isLayoutPending, setIsLayoutPending] = useState(false);
     const initDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Use Refs to bypass stale closures for callbacks bound inside nodes
@@ -220,8 +220,10 @@ const App: React.FC = () => {
     useEffect(() => {
         if (!graphData) return;
         if (initDebounceRef.current) clearTimeout(initDebounceRef.current);
+        setIsLayoutPending(true);
         initDebounceRef.current = setTimeout(() => {
-            startLayoutTransition(() => { initializeGraph(graphData, viewMode, graphViewMode); });
+            initializeGraph(graphData, viewMode, graphViewMode);
+            setIsLayoutPending(false);
         }, 150);
     }, [relationshipLimit, independentLimit, renderNodeBudget]);
 
@@ -1454,7 +1456,7 @@ const App: React.FC = () => {
                                     setGraphViewMode('function');
                                     setRelationshipLimit(NODE_PAGE_SIZE);
                                     setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'function'));
+                                    if (graphData) initializeGraph(graphData, viewMode, 'function');
                                 }}
                             >
                                 Function Graph
@@ -1465,7 +1467,7 @@ const App: React.FC = () => {
                                     setGraphViewMode('directory');
                                     setRelationshipLimit(NODE_PAGE_SIZE);
                                     setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'directory'));
+                                    if (graphData) initializeGraph(graphData, viewMode, 'directory');
                                 }}
                             >
                                 Directory Graph
@@ -1474,7 +1476,7 @@ const App: React.FC = () => {
                                 className={`view-btn ${graphViewMode === 'sequence' ? 'active' : ''}`}
                                 onClick={() => {
                                     setGraphViewMode('sequence');
-                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'sequence'));
+                                    if (graphData) initializeGraph(graphData, viewMode, 'sequence');
                                 }}
                             >
                                 Sequence
@@ -1485,7 +1487,7 @@ const App: React.FC = () => {
                                     setGraphViewMode('overall');
                                     setRelationshipLimit(NODE_PAGE_SIZE);
                                     setIndependentLimit(NODE_PAGE_SIZE);
-                                    if (graphData) startLayoutTransition(() => initializeGraph(graphData, viewMode, 'overall'));
+                                    if (graphData) initializeGraph(graphData, viewMode, 'overall');
                                 }}
                             >
                                 Overall Graph
@@ -1619,6 +1621,13 @@ const App: React.FC = () => {
                     >
                         <span className="easter-egg-text">Expand to HTML</span>
                         <span className="easter-egg-subtext">try me</span>
+                    </button>
+                    <button
+                        className="view-btn secondary-action"
+                        onClick={() => window.vscode?.postMessage({ command: 'openDashboard' })}
+                        title="Open the metrics dashboard"
+                    >
+                        Mission Control
                     </button>
                     <button
                         className="view-btn secondary-action"
@@ -1823,7 +1832,7 @@ const App: React.FC = () => {
                                 focusNodeId={activeSearchNodeId || undefined}
                                 focusToken={searchFocusTick}
                             />
-                            {isPendingLayout && (
+                            {isLayoutPending && (
                                 <div style={{
                                     position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: 'rgba(13,17,23,0.55)', backdropFilter: 'blur(2px)', zIndex: 20, pointerEvents: 'none'

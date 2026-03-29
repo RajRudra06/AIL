@@ -449,6 +449,8 @@ export class GraphPanelManager {
                         await GraphPanelManager.sendRepoMetadata(panel, workspacePath);
                     } else if (message.command === 'getAiConfig') {
                         await GraphPanelManager.sendAiConfig(panel);
+                    } else if (message.command === 'openDashboard') {
+                        await vscode.commands.executeCommand('ail-extension.openDashboard');
                     } else if (message.command === 'openAiSettings') {
                         await GraphPanelManager.openAiSettingsWizard(panel);
                     } else if (message.command === 'openGraphInBrowser') {

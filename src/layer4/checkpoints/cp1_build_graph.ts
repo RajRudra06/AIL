@@ -263,18 +263,17 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
         }
     }
 
-    // Min-max normalization helpers
-    const normalize = (val: number, arr: number[], baselineMax: number): number => {
-        const min = Math.min(...arr);
-        const max = Math.max(...arr);
-        if (!Number.isFinite(min) || !Number.isFinite(max)) {
-            return 0;
-        }
-        if (max === min) {
-            // Fallback: If all values are the same, use an absolute scale against a baseline max
-            return Math.min(1, val / baselineMax);
-        }
-        return (val - min) / (max - min);
+    // Absolute normalization using log scaling — produces meaningful scores
+    // regardless of repo size or metric distribution.
+    // Each metric is mapped to 0–1 using a saturation reference point:
+    //   complexity: 15 = fully saturated (cyclomatic)
+    //   churn:      500 = fully saturated (insertions + deletions across commits)
+    //   coupling:   0.6 = fully saturated (co-change ratio)
+    //   structural: 12 = fully saturated (in+out degree in call graph)
+    const logNorm = (val: number, saturation: number): number => {
+        if (val <= 0) return 0;
+        // log1p(val) / log1p(saturation) gives a gentle curve that doesn't crush low values
+        return Math.min(1, Math.log1p(val) / Math.log1p(saturation));
     };
 
     const rpiByNodeId = new Map<string, number>();
@@ -290,13 +289,13 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
             const coupling = node.file ? (couplingMap.get(node.file) || 0) : 0;
             const structural = structuralDegreeMap.get(node.id) || 0;
 
-            // Complexity baseline 10, Churn 5, Coupling 0.5, Structural 8
-            const normComplexity = normalize(complexity, rawComplexities, 10);
-            const normChurn = normalize(fileChurn, rawChurns, 5);
-            const normCoupling = normalize(coupling, rawCouplings, 0.5);
-            const normStructural = normalize(structural, rawStructural, 8);
+            const normComplexity = logNorm(complexity, 15);
+            const normChurn = logNorm(fileChurn, 500);
+            const normCoupling = logNorm(coupling, 0.6);
+            const normStructural = logNorm(structural, 12);
 
-            const rpi = parseFloat(((normComplexity * 0.35) + (normChurn * 0.25) + (normCoupling * 0.2) + (normStructural * 0.2)).toFixed(3));
+            // Weights: complexity dominates, churn close second, coupling & structural equal
+            const rpi = parseFloat(((normComplexity * 0.30) + (normChurn * 0.30) + (normCoupling * 0.20) + (normStructural * 0.20)).toFixed(3));
 
             node.metadata.riskScore = rpi;
             node.metadata.complexity = complexity;
@@ -307,26 +306,15 @@ export function runCheckpoint1(workspacePath: string, analysisDir: string): Know
         }
     }
 
-    // Percentile thresholds keep risk tiers meaningful across diverse repos.
-    const rpiValues = Array.from(rpiByNodeId.values()).sort((a, b) => a - b);
-    const percentile = (arr: number[], p: number): number => {
-        if (arr.length === 0) { return 0; }
-        const idx = Math.max(0, Math.min(arr.length - 1, Math.floor(p * (arr.length - 1))));
-        return arr[idx];
-    };
-
-    const criticalThreshold = Math.max(0.75, percentile(rpiValues, 0.9));
-    const highThreshold = Math.max(0.5, percentile(rpiValues, 0.75));
-    const mediumThreshold = Math.max(0.25, percentile(rpiValues, 0.5));
-
+    // Risk level thresholds — absolute, no percentile floors
     for (const node of nodes) {
         if (node.type === 'function' || node.type === 'method') {
             const rpi = rpiByNodeId.get(node.id) || 0;
-            node.metadata.riskLevel = rpi >= criticalThreshold
+            node.metadata.riskLevel = rpi >= 0.7
                 ? 'critical'
-                : rpi >= highThreshold
+                : rpi >= 0.4
                     ? 'high'
-                    : rpi >= mediumThreshold
+                    : rpi >= 0.15
                         ? 'medium'
                         : 'low';
         }

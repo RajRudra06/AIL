@@ -22,6 +22,10 @@
       {
         "command": "ail-extension.runAIL",
         "title": "Run AIL Analysis"
+      },
+      {
+        "command": "ail-extension.openDashboard",
+        "title": "AIL: Open Dashboard"
       }
     ],
     "configuration": {

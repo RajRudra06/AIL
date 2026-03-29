@@ -33,7 +33,11 @@ export function activate(context: vscode.ExtensionContext) {
         await openPreferredView(context);
     });
 
-    context.subscriptions.push(helloWorld, runAIL);
+    const openDashboard = vscode.commands.registerCommand('ail-extension.openDashboard', async () => {
+        PanelManager.createOrShow(context);
+    });
+
+    context.subscriptions.push(helloWorld, runAIL, openDashboard);
 }
 
 export function deactivate() { }

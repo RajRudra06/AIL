@@ -29,12 +29,23 @@ const RiskHeatmapInner: React.FC<{
                 const visEdges: any[] = [];
                 const includedIds = new Set();
 
-                data.graph.nodes.forEach((n: any) => {
+                // Pre-sort by risk so we can show a meaningful subset
+                const allNodes = [...(data.graph.nodes as any[])];
+                allNodes.sort((a: any, b: any) => {
+                    const ra = Number(a.metadata?.riskScore) || 0;
+                    const rb = Number(b.metadata?.riskScore) || 0;
+                    return rb - ra;
+                });
+
+                allNodes.forEach((n: any) => {
                     if (!n.id || includedIds.has(n.id)) return;
 
                     const rawRpi = n.metadata?.riskScore;
-                    const rpi = (rawRpi === undefined || rawRpi === null) ? 0 : Number(rawRpi);
+                    const rpi = (rawRpi === undefined || rawRpi === null) ? -1 : Number(rawRpi);
                     const safeRpi = isNaN(rpi) ? 0 : rpi;
+
+                    // Skip nodes with no risk data (file nodes without riskScore)
+                    if (rpi < 0) return;
 
                     // Color by RPI tier (RPI is 0.0 – 1.0)
                     let bg: string;
