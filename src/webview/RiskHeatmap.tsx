@@ -41,21 +41,21 @@ const RiskHeatmapInner: React.FC<{
                     if (!n.id || includedIds.has(n.id)) return;
 
                     const rawRpi = n.metadata?.riskScore;
-                    const rpi = (rawRpi === undefined || rawRpi === null) ? -1 : Number(rawRpi);
+                    const rpi = (rawRpi === undefined || rawRpi === null) ? 0 : Number(rawRpi);
                     const safeRpi = isNaN(rpi) ? 0 : rpi;
+                    const hasRiskData = rawRpi !== undefined && rawRpi !== null;
 
-                    // Skip nodes with no risk data (file nodes without riskScore)
-                    if (rpi < 0) return;
-
-                    // Color by RPI tier (RPI is 0.0 – 1.0)
+                    // Color by RPI tier (RPI is 0.0 – 1.0); unscored nodes get a dim neutral
                     let bg: string;
-                    if (safeRpi >= 0.7) { bg = '#ff4040'; }
-                    else if (safeRpi >= 0.4) { bg = '#ff9f5f'; }
-                    else if (safeRpi >= 0.15) { bg = '#ffc66d'; }
-                    else { bg = '#2d6a4f'; }
+                    let border: string;
+                    if (!hasRiskData) { bg = '#2a3a4e'; border = '#3a4f66'; }
+                    else if (safeRpi >= 0.7) { bg = '#ff4040'; border = '#ff6666'; }
+                    else if (safeRpi >= 0.4) { bg = '#ff9f5f'; border = '#ffb880'; }
+                    else if (safeRpi >= 0.15) { bg = '#ffc66d'; border = '#ffd88a'; }
+                    else { bg = '#40b080'; border = '#5fd4a0'; }
 
-                    // Size nodes by risk — higher risk = bigger node
-                    const nodeSize = Math.max(8, safeRpi * 50);
+                    // Size nodes by risk — higher risk = bigger node, minimum visible
+                    const nodeSize = hasRiskData ? Math.max(12, safeRpi * 50) : 8;
 
                     const complexity = n.metadata?.complexity ?? '—';
                     const churn = n.metadata?.fileChurn ?? n.metadata?.churnScore ?? '—';
@@ -81,7 +81,7 @@ const RiskHeatmapInner: React.FC<{
                         title: tooltip,
                         shape: n.type === 'file' ? 'box' : 'dot',
                         size: n.type === 'file' ? undefined : nodeSize,
-                        color: { background: bg, border: bg, highlight: { background: '#fff', border: bg } },
+                        color: { background: bg, border: border, highlight: { background: '#fff', border: border } },
                         font: { color: '#f8fafc', size: 14, strokeWidth: 2, strokeColor: '#000', face: 'system-ui' }
                     });
                     includedIds.add(n.id);
@@ -114,7 +114,7 @@ const RiskHeatmapInner: React.FC<{
                 });
 
                 const options = {
-                    nodes: { borderWidth: 0, font: { size: 12 } },
+                    nodes: { borderWidth: 2, font: { size: 12 } },
                     edges: { smooth: { type: 'continuous' } },
                     layout: { hierarchical: false },
                     physics: {

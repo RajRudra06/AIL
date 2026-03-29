@@ -1288,6 +1288,32 @@ export class GraphPanelManager {
                     }
                 }));
 
+                // Merge layer4 risk scores into the nodes
+                const l4GraphPath = path.join(ailRoot, 'layer4', 'analysis', 'knowledge_graph.json');
+                if (fs.existsSync(l4GraphPath)) {
+                    try {
+                        const l4Graph = JSON.parse(fs.readFileSync(l4GraphPath, 'utf-8'));
+                        const riskByNodeId = new Map<string, any>();
+                        for (const n of (l4Graph.nodes || [])) {
+                            if (n.metadata?.riskScore !== undefined) {
+                                riskByNodeId.set(n.id, n.metadata);
+                            }
+                        }
+                        for (const node of nodesWithImportance) {
+                            const riskMeta = riskByNodeId.get(node.id);
+                            if (riskMeta) {
+                                node.metadata.riskScore = riskMeta.riskScore;
+                                node.metadata.riskLevel = riskMeta.riskLevel;
+                                node.metadata.fileChurn = riskMeta.fileChurn;
+                                node.metadata.coupling = riskMeta.coupling;
+                                node.metadata.structuralRisk = riskMeta.structuralRisk;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[AIL] Could not merge layer4 risk data:', e);
+                    }
+                }
+
                 graphData = {
                     nodes: nodesWithImportance,
                     edges: mappedEdges
