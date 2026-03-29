@@ -60,18 +60,74 @@ export class GraphPanelManager {
 
         if (provider === 'gemini') {
             const current = config.get<string>('geminiModel') || 'gemini-2.0-flash';
-            const options = ['gemini-2.0-flash', 'gemini-2.0-pro', 'gemini-1.5-pro', 'gemini-1.5-flash', current]
-                .filter((v, i, arr) => arr.indexOf(v) === i)
-                .map(v => ({ label: v, value: v }));
+            const seen = new Set<string>();
+            const discovered: Array<{ label: string; value: string; description?: string }> = [];
 
-            const pick = await vscode.window.showQuickPick(options, {
+            const geminiKey = ConfigUtils.getGeminiApiKey();
+            if (geminiKey) {
+                for (const apiVersion of ['v1beta', 'v1alpha']) {
+                    let pageToken: string | undefined;
+                    try {
+                        do {
+                            const url = new URL(`https://generativelanguage.googleapis.com/${apiVersion}/models`);
+                            url.searchParams.set('key', geminiKey);
+                            url.searchParams.set('pageSize', '1000');
+                            if (pageToken) { url.searchParams.set('pageToken', pageToken); }
+
+                            const res = await fetch(url.toString(), { method: 'GET' });
+                            if (!res.ok) { break; }
+
+                            const payload = await res.json() as any;
+                            for (const m of (Array.isArray(payload.models) ? payload.models : [])) {
+                                if (!Array.isArray(m.supportedGenerationMethods) || !m.supportedGenerationMethods.includes('generateContent')) { continue; }
+                                const fullName = String(m.name || '');
+                                const shortName = fullName.startsWith('models/') ? fullName.slice('models/'.length) : fullName;
+                                if (shortName && !seen.has(shortName)) {
+                                    seen.add(shortName);
+                                    discovered.push({
+                                        label: shortName,
+                                        value: shortName,
+                                        description: shortName === current ? 'current' : (m.displayName || undefined),
+                                    });
+                                }
+                            }
+                            pageToken = payload.nextPageToken;
+                        } while (pageToken);
+                    } catch {
+                        // version may not be available
+                    }
+                }
+            }
+
+            // Ensure current model is always visible
+            if (!seen.has(current)) {
+                discovered.unshift({ label: current, value: current, description: 'current' });
+            }
+
+            // Add custom entry option
+            discovered.push({ label: 'Custom model...', value: '__custom__', description: 'Type any Gemini model name' });
+
+            const pick = await vscode.window.showQuickPick(discovered, {
                 title: 'AIL: Select Gemini Model',
-                placeHolder: `Current: ${current}`,
+                placeHolder: discovered.length <= 2 ? `Current: ${current} (API key missing — set credentials to fetch full list)` : `Current: ${current}`,
                 ignoreFocusOut: true,
             });
 
             if (pick) {
-                await config.update('geminiModel', pick.value, target);
+                if (pick.value === '__custom__') {
+                    const custom = await vscode.window.showInputBox({
+                        title: 'Custom Gemini Model',
+                        prompt: 'Enter Gemini model name (e.g. gemini-3-flash-preview)',
+                        value: current,
+                        ignoreFocusOut: true,
+                        validateInput: (v: string) => v.trim().length === 0 ? 'Model name is required.' : null,
+                    });
+                    if (custom && custom.trim()) {
+                        await config.update('geminiModel', custom.trim(), target);
+                    }
+                } else {
+                    await config.update('geminiModel', pick.value, target);
+                }
             } else if (forcePick) {
                 await config.update('geminiModel', current, target);
             }

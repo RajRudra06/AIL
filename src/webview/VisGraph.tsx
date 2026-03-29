@@ -35,13 +35,14 @@ export const VisGraph: React.FC<{ data: any; llmLimit: number; onNodeSelect?: (n
                     const score = n.metadata?.importanceScore || 0;
                     // Always render files and external modules as the backbone. Filter functions based on slider.
                     if ((n.type === 'module' || n.type === 'file') || score >= limit || limit === 1) {
-                        // Generate proper node colors matching AIL original implementation
+                        
                         let bg = '#555', border = '#333';
                         if (n.type === 'file') { bg = '#2B5B84'; border = '#1A364E'; }
                         else if (n.type === 'function') { bg = '#2A4365'; border = '#1A293E'; }
                         else if (n.type === 'class') { bg = '#553C9A'; border = '#32235B'; }
 
-                        const titleHtml = `Type: ${n.type}` + (score ? `\nImportance: ${score}/10` : '');
+                        const titleHtml = `Type: ${n.type}`
+                            + (score ? `\nImportance: ${score}/10` : '');
 
                         visNodes.push({
                             id: n.id,
@@ -51,7 +52,7 @@ export const VisGraph: React.FC<{ data: any; llmLimit: number; onNodeSelect?: (n
                             shape: n.type === 'file' ? 'box' : 'dot',
                             size: n.type === 'file' ? undefined : Math.max(10, score * 3),
                             color: { background: bg, border: border, highlight: { background: '#fff', border: border } },
-                            font: { color: '#f8fafc', size: n.type === 'file' ? 16 : 14, strokeWidth: 2, strokeColor: border, face: 'system-ui', multi: 'html' }
+                            font: { color: '#f8fafc', size: n.type === 'file' ? 16 : 14, strokeWidth: 2, strokeColor: '#000', face: 'system-ui', multi: 'html' }
                         });
                         includedIds.add(n.id);
                     }

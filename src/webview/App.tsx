@@ -7,13 +7,14 @@ import { Node, Edge, Position, MarkerType, applyNodeChanges, applyEdgeChanges, N
 import { SummaryPanel } from './SummaryPanel';
 import { ChatPanel } from './ChatPanel';
 import { VisGraph } from './VisGraph';
+import { RiskHeatmap } from './RiskHeatmap';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';
     content: string;
 }
 
-type GraphViewMode = 'function' | 'directory' | 'sequence' | 'overall';
+type GraphViewMode = 'function' | 'directory' | 'sequence' | 'overall' | 'risk_heatmap';
 
 const NODE_PAGE_SIZE = 25;
 const MAX_LAYOUT_NODES_FOR_DAGRE = 320;
@@ -34,6 +35,7 @@ const EDGE_THEME: Record<GraphViewMode, string> = {
     directory: '#7ab6ff',
     sequence: '#f8b367',
     overall: '#7fa6cf',
+    risk_heatmap: '#ff7070',
 };
 
 const App: React.FC = () => {
@@ -1410,6 +1412,7 @@ const App: React.FC = () => {
         directory: 'File-level dependency view aggregated from entity interactions.',
         sequence: 'Backbone flow view (spanning forest), not runtime execution tracing.',
         overall: 'Global exploration mode with vis-network physics and importance filtering.',
+        risk_heatmap: 'Physics graph colored by Risk Priority Index (RPI) showing architectural ticking time-bombs.',
     };
 
     return (
@@ -1471,6 +1474,18 @@ const App: React.FC = () => {
                             >
                                 Overall Graph
                             </button>
+                            <button
+                                className={`view-btn ${graphViewMode === 'risk_heatmap' ? 'active' : ''}`}
+                                style={graphViewMode === 'risk_heatmap' ? { borderColor: '#ff4040', color: '#ffaaaa', backgroundColor: 'rgba(255, 64, 64, 0.1)' } : {}}
+                                onClick={() => {
+                                    setGraphViewMode('risk_heatmap');
+                                    setRelationshipLimit(NODE_PAGE_SIZE);
+                                    setIndependentLimit(NODE_PAGE_SIZE);
+                                    if (graphData) initializeGraph(graphData, viewMode, 'overall');
+                                }}
+                            >
+                                Risk Heatmap
+                            </button>
                         </div>
                         <div className="mode-semantics">
                             {modeSemantics[graphViewMode]}
@@ -1518,7 +1533,11 @@ const App: React.FC = () => {
                         <div className="view-header">
                             <span className="view-label">Visibility</span>
                         </div>
-                        {graphViewMode === 'overall' ? (
+                        {graphViewMode === 'risk_heatmap' ? (
+                            <div className="visibility-meta" style={{ color: '#ffaaaa' }}>
+                                All nodes shown, colored by Risk Priority Index
+                            </div>
+                        ) : graphViewMode === 'overall' ? (
                             <>
                                 <div className="visibility-meta">
                                     LLM Importance Stringency: {llmLimit === 1 ? 'ALL' : `>= ${llmLimit}/10`}
@@ -1769,10 +1788,21 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    {graphViewMode === 'overall' ? (
-                        <VisGraph 
-                            data={graphData} 
-                            llmLimit={llmLimit} 
+                    {graphViewMode === 'risk_heatmap' ? (
+                        <RiskHeatmap
+                            data={graphData}
+                            onNodeSelect={(nodeId) => {
+                                const gNode = graphData?.graph?.nodes?.find((n: any) => n.id === nodeId);
+                                if (gNode) {
+                                    handleExplainFunction(nodeId, gNode.name || gNode.id, gNode.file);
+                                    setSelectedNodeIds([nodeId]);
+                                }
+                            }}
+                        />
+                    ) : graphViewMode === 'overall' ? (
+                        <VisGraph
+                            data={graphData}
+                            llmLimit={llmLimit}
                             onNodeSelect={(nodeId) => {
                                 const gNode = graphData?.graph?.nodes?.find((n: any) => n.id === nodeId);
                                 if (gNode) {
@@ -1802,7 +1832,30 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    {graphViewMode !== 'overall' && (
+                    {graphViewMode === 'risk_heatmap' ? (
+                        <div className="legend-card" style={{ borderColor: 'rgba(255,112,112,0.3)', boxShadow: '0 4px 15px rgba(255,112,112,0.1)' }}>
+                            <div className="legend-title" style={{ color: '#ffaaaa' }}>Risk Priority Index (RPI)</div>
+                            <div className="legend-row">
+                                <span className="legend-dot" style={{ background: '#ff4040', boxShadow: '0 0 8px #ff4040' }} />
+                                <span>Critical Risk (&ge; 7.0)</span>
+                            </div>
+                            <div className="legend-row">
+                                <span className="legend-dot" style={{ background: '#ff9f5f' }} />
+                                <span>High Risk (&ge; 4.0)</span>
+                            </div>
+                            <div className="legend-row">
+                                <span className="legend-dot" style={{ background: '#ffc66d' }} />
+                                <span>Medium Risk (&ge; 1.0)</span>
+                            </div>
+                            <div className="legend-row">
+                                <span className="legend-dot" style={{ background: '#2d6a4f' }} />
+                                <span>Low/No Risk</span>
+                            </div>
+                            <div className="legend-note" style={{ color: '#ffaaaa' }}>
+                                Nodes colored by (Complexity + Churn + Coupling)
+                            </div>
+                        </div>
+                    ) : graphViewMode !== 'overall' && (
                         <div className="legend-card">
                             <div className="legend-title">Depth Legend</div>
                             {DEPTH_COLOR_LEGEND.map(item => (

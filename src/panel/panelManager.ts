@@ -14,12 +14,6 @@ import { ConfigUtils } from '../utils/configUtils';
 let hasPromptedGeminiKeyThisSession = false;
 let promptedModelProviderThisSession: 'azure' | 'gemini' | 'ollama' | undefined;
 
-const GEMINI_MODEL_PRESETS = [
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro'
-];
-
 interface GeminiModelOption {
     label: string;
     description?: string;
@@ -43,15 +37,33 @@ async function promptForGeminiModel(config: vscode.WorkspaceConfiguration): Prom
     const currentModel = config.get<string>('geminiModel') || 'gemini-2.0-flash';
 
     const fetchGeminiModels = async (apiKey: string): Promise<GeminiModelOption[]> => {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, { method: 'GET' });
-        if (!response.ok) {
-            throw new Error(`Gemini model discovery failed (${response.status})`);
+        const allModels: any[] = [];
+
+        // Fetch from both v1beta and v1alpha to capture preview/experimental models
+        for (const apiVersion of ['v1beta', 'v1alpha']) {
+            let pageToken: string | undefined;
+            try {
+                do {
+                    const url = new URL(`https://generativelanguage.googleapis.com/${apiVersion}/models`);
+                    url.searchParams.set('key', apiKey);
+                    url.searchParams.set('pageSize', '1000');
+                    if (pageToken) { url.searchParams.set('pageToken', pageToken); }
+
+                    const response = await fetch(url.toString(), { method: 'GET' });
+                    if (!response.ok) { break; }
+
+                    const payload = await response.json() as any;
+                    if (Array.isArray(payload.models)) { allModels.push(...payload.models); }
+                    pageToken = payload.nextPageToken;
+                } while (pageToken);
+            } catch {
+                // v1alpha may not be available — that's fine
+            }
         }
 
-        const payload = await response.json() as any;
-        const models = Array.isArray(payload.models) ? payload.models : [];
-
-        return models
+        // Deduplicate by model name
+        const seen = new Set<string>();
+        return allModels
             .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
             .map((m: any) => {
                 const fullName = String(m.name || '');
@@ -62,17 +74,15 @@ async function promptForGeminiModel(config: vscode.WorkspaceConfiguration): Prom
                     detail: m.description || undefined
                 } as GeminiModelOption;
             })
-            .filter((m: GeminiModelOption) => m.label.length > 0)
+            .filter((m: GeminiModelOption) => {
+                if (m.label.length === 0 || seen.has(m.label)) { return false; }
+                seen.add(m.label);
+                return true;
+            })
             .sort((a: GeminiModelOption, b: GeminiModelOption) => a.label.localeCompare(b.label));
     };
 
     const options = new Map<string, GeminiModelOption>();
-    for (const preset of GEMINI_MODEL_PRESETS) {
-        options.set(preset, {
-            label: preset,
-            description: preset === currentModel ? 'current (preset)' : 'preset'
-        });
-    }
 
     const geminiKey = ConfigUtils.getGeminiApiKey();
     if (geminiKey) {
@@ -85,8 +95,13 @@ async function promptForGeminiModel(config: vscode.WorkspaceConfiguration): Prom
                 });
             }
         } catch (err: any) {
-            vscode.window.showWarningMessage(`Could not fetch Gemini model list. Using presets. ${err?.message || ''}`.trim());
+            vscode.window.showWarningMessage(`Could not fetch Gemini model list: ${err?.message || 'unknown error'}`.trim());
         }
+    }
+
+    // Ensure the current model always appears even if API call failed
+    if (currentModel && !options.has(currentModel)) {
+        options.set(currentModel, { label: currentModel, description: 'current' });
     }
 
     const selection = await vscode.window.showQuickPick(
@@ -387,6 +402,7 @@ export class PanelManager {
                         break;
 
                     case 'selectModel':
+                    case 'openAiSettings':
                         await ensureProviderModelSelection(true);
                         panel.webview.postMessage({ command: 'modelSelectionUpdated' });
                         break;
